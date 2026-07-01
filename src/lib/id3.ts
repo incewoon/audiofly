@@ -1,4 +1,4 @@
-import ID3Writer from "browser-id3-writer";
+import { ID3Writer } from "browser-id3-writer";
 
 export interface Id3Tags {
   title?: string;
