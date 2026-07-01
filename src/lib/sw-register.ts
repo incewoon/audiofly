@@ -41,9 +41,17 @@ export function registerAppSW() {
     void unregisterAppSW();
     return;
   }
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register(APP_SW_PATH).catch((err) => {
+  window.addEventListener("load", async () => {
+    try {
+      // Clean up any legacy /sw.js registered by earlier builds.
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || "";
+        if (LEGACY_SW_PATHS.some((p) => url.endsWith(p))) await reg.unregister();
+      }
+      await navigator.serviceWorker.register(APP_SW_PATH);
+    } catch (err) {
       console.warn("SW registration failed:", err);
-    });
+    }
   });
 }
