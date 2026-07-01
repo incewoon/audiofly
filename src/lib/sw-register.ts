@@ -1,7 +1,9 @@
 // Guarded service-worker registration. Only registers in a real published
 // production origin — never in Lovable preview, iframe embeds, or dev.
 
-const APP_SW_PATH = "/sw.js";
+const APP_SW_PATH = "/service-worker.js";
+const LEGACY_SW_PATHS = ["/sw.js"];
+
 
 function isRefusedContext(): boolean {
   if (typeof window === "undefined") return true;
