@@ -23,14 +23,16 @@ function isRefusedContext(): boolean {
   return false;
 }
 
-async function unregisterAppSW() {
+async function unregisterAppSW(extra: string[] = []) {
   if (!("serviceWorker" in navigator)) return;
+  const targets = [APP_SW_PATH, ...LEGACY_SW_PATHS, ...extra];
   const regs = await navigator.serviceWorker.getRegistrations();
   for (const reg of regs) {
     const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || "";
-    if (url.endsWith(APP_SW_PATH)) await reg.unregister();
+    if (targets.some((p) => url.endsWith(p))) await reg.unregister();
   }
 }
+
 
 export function registerAppSW() {
   if (typeof window === "undefined") return;
