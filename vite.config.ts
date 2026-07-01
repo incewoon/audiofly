@@ -15,8 +15,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       injectRegister: null,
       devOptions: { enabled: false },
-      filename: "sw.js",
+      filename: "service-worker.js",
       manifest: false,
+
       workbox: {
         navigateFallback: "/",
         navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//, /^\/__l5e\//],

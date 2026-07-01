@@ -1,7 +1,9 @@
 // Guarded service-worker registration. Only registers in a real published
 // production origin — never in Lovable preview, iframe embeds, or dev.
 
-const APP_SW_PATH = "/sw.js";
+const APP_SW_PATH = "/service-worker.js";
+const LEGACY_SW_PATHS = ["/sw.js"];
+
 
 function isRefusedContext(): boolean {
   if (typeof window === "undefined") return true;
@@ -21,14 +23,16 @@ function isRefusedContext(): boolean {
   return false;
 }
 
-async function unregisterAppSW() {
+async function unregisterAppSW(extra: string[] = []) {
   if (!("serviceWorker" in navigator)) return;
+  const targets = [APP_SW_PATH, ...LEGACY_SW_PATHS, ...extra];
   const regs = await navigator.serviceWorker.getRegistrations();
   for (const reg of regs) {
     const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || "";
-    if (url.endsWith(APP_SW_PATH)) await reg.unregister();
+    if (targets.some((p) => url.endsWith(p))) await reg.unregister();
   }
 }
+
 
 export function registerAppSW() {
   if (typeof window === "undefined") return;
@@ -37,9 +41,17 @@ export function registerAppSW() {
     void unregisterAppSW();
     return;
   }
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register(APP_SW_PATH).catch((err) => {
+  window.addEventListener("load", async () => {
+    try {
+      // Clean up any legacy /sw.js registered by earlier builds.
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || "";
+        if (LEGACY_SW_PATHS.some((p) => url.endsWith(p))) await reg.unregister();
+      }
+      await navigator.serviceWorker.register(APP_SW_PATH);
+    } catch (err) {
       console.warn("SW registration failed:", err);
-    });
+    }
   });
 }
