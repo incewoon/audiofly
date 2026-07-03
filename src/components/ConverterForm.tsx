@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { convertMp4ToMp3 } from "@/lib/convert";
 import { writeId3Tags } from "@/lib/id3";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Upload, Music } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function stripExt(name: string) {
   const i = name.lastIndexOf(".");
@@ -15,6 +16,18 @@ function stripExt(name: string) {
 }
 
 type Status = "idle" | "loading" | "converting" | "tagging" | "done";
+type Preset = "1" | "2";
+
+const PRESET_KEY = "audiofly:filename-preset";
+
+function buildFilename(preset: Preset, opts: { title: string; artist: string; trackNumber: string; fallback: string }) {
+  const { title, artist, trackNumber, fallback } = opts;
+  const parts = preset === "1"
+    ? [artist, trackNumber, title]
+    : [title, artist];
+  const joined = parts.map((s) => s.trim()).filter(Boolean).join("-");
+  return joined || fallback;
+}
 
 export function ConverterForm() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -23,11 +36,32 @@ export function ConverterForm() {
   const [progress, setProgress] = useState(0);
 
   const [filename, setFilename] = useState("");
+  const [filenameEdited, setFilenameEdited] = useState(false);
+  const [preset, setPreset] = useState<Preset>("1");
+
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [albumArtist, setAlbumArtist] = useState("");
   const [trackNumber, setTrackNumber] = useState("");
   const [album, setAlbum] = useState("");
+
+  // Load saved preset on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PRESET_KEY);
+      if (saved === "1" || saved === "2") setPreset(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Auto-fill filename when preset or source fields change (unless user has manually edited)
+  useEffect(() => {
+    if (!file) return;
+    if (filenameEdited) return;
+    const fallback = stripExt(file.name);
+    setFilename(buildFilename(preset, { title, artist, trackNumber, fallback }));
+  }, [preset, title, artist, trackNumber, file, filenameEdited]);
 
   const busy = status === "loading" || status === "converting" || status === "tagging";
 
@@ -45,10 +79,21 @@ export function ConverterForm() {
     if (!f) return;
     setFile(f);
     const base = stripExt(f.name);
-    setFilename(base);
     setTitle(base);
+    setFilename(base);
+    setFilenameEdited(false);
     setStatus("idle");
     setProgress(0);
+  };
+
+  const handlePresetChange = (p: Preset) => {
+    setPreset(p);
+    setFilenameEdited(false);
+    try {
+      localStorage.setItem(PRESET_KEY, p);
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleConvert = async () => {
@@ -123,10 +168,6 @@ export function ConverterForm() {
 
         <div className="grid grid-cols-1 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="filename">파일명</Label>
-            <Input id="filename" value={filename} onChange={(e) => setFilename(e.target.value)} placeholder="output" />
-          </div>
-          <div className="space-y-1.5">
             <Label htmlFor="title">노래 제목</Label>
             <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
@@ -146,6 +187,49 @@ export function ConverterForm() {
             <div className="space-y-1.5">
               <Label htmlFor="track">트랙 #</Label>
               <Input id="track" inputMode="numeric" value={trackNumber} onChange={(e) => setTrackNumber(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="filename">파일명</Label>
+            <Input
+              id="filename"
+              value={filename}
+              onChange={(e) => {
+                setFilename(e.target.value);
+                setFilenameEdited(true);
+              }}
+              placeholder="output"
+            />
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handlePresetChange("1")}
+                className={cn(
+                  "flex-1 min-h-11 rounded-md border text-sm font-medium transition-colors px-3 text-left",
+                  preset === "1"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                )}
+                aria-pressed={preset === "1"}
+              >
+                <span className="font-bold mr-2">1</span>
+                <span className="text-xs opacity-90">아티스트-트랙-제목</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePresetChange("2")}
+                className={cn(
+                  "flex-1 min-h-11 rounded-md border text-sm font-medium transition-colors px-3 text-left",
+                  preset === "2"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                )}
+                aria-pressed={preset === "2"}
+              >
+                <span className="font-bold mr-2">2</span>
+                <span className="text-xs opacity-90">제목-아티스트</span>
+              </button>
             </div>
           </div>
         </div>
