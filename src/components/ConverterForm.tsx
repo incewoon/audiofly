@@ -132,6 +132,8 @@ export function ConverterForm() {
       setStatus("done");
       setProgress(1);
       toast.success("변환 완료 — 다운로드가 시작되었습니다.");
+      // Full reset after successful download
+      resetAll();
     } catch (err) {
       console.error(err);
       setStatus("idle");
@@ -139,13 +141,39 @@ export function ConverterForm() {
     }
   };
 
+  const resetAll = () => {
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+    setTitle("");
+    setArtist("");
+    setAlbumArtist("");
+    setAlbum("");
+    setTrackNumber("");
+    setFilename("");
+    setFilenameEdited(false);
+    setPreset("1");
+    try { localStorage.removeItem(PRESET_KEY); } catch { /* ignore */ }
+    setProgress(0);
+    setStatus("idle");
+  };
+
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <Music className="h-5 w-5" /> MP4 → MP3 변환
-        </CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Music className="h-5 w-5" /> MP4 → MP3 변환
+          </CardTitle>
+          <Link
+            to="/tag-editor"
+            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+          >
+            <Tag className="h-3.5 w-3.5" />
+            MP3 태그 편집
+          </Link>
+        </div>
       </CardHeader>
+
       <CardContent className="space-y-5">
         <div className="space-y-2">
           <Label>동영상 파일</Label>
