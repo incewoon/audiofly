@@ -9,8 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TagEditorRouteImport } from './routes/tag-editor'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TagEditorRoute = TagEditorRouteImport.update({
+  id: '/tag-editor',
+  path: '/tag-editor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +25,39 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/tag-editor': typeof TagEditorRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/tag-editor': typeof TagEditorRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/tag-editor': typeof TagEditorRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/tag-editor'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/tag-editor'
+  id: '__root__' | '/' | '/tag-editor'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  TagEditorRoute: typeof TagEditorRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tag-editor': {
+      id: '/tag-editor'
+      path: '/tag-editor'
+      fullPath: '/tag-editor'
+      preLoaderRoute: typeof TagEditorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,6 +70,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  TagEditorRoute: TagEditorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
