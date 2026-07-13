@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { convertMp4ToMp3 } from "@/lib/convert";
 import { writeId3Tags } from "@/lib/id3";
 import { Button } from "@/components/ui/button";
@@ -7,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Upload, Music } from "lucide-react";
+import { Loader2, Upload, Music, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
+
 
 function stripExt(name: string) {
   const i = name.lastIndexOf(".");
