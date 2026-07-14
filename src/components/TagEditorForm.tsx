@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Loader2, Upload, Music, FileText, Image as ImageIcon, ArrowLeftRight } from "lucide-react";
 import { tagExistingMp3, type Id3Cover } from "@/lib/id3";
 import { readId3Tags } from "@/lib/id3-read";
+import { pickFileNative } from "@/lib/pick-file";
 
 type Status = "idle" | "reading" | "saving";
 
