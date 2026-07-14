@@ -173,13 +173,14 @@ export function ConverterForm() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Music className="h-5 w-5" /> MP4 → MP3 변환
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
+            <Music className="h-5 w-5 shrink-0" />
+            <span className="truncate">MP4 → MP3 변환</span>
           </CardTitle>
           <Link
             to="/tag-editor"
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
           >
             <Tag className="h-3.5 w-3.5" />
             MP3 태그 편집
@@ -193,19 +194,21 @@ export function ConverterForm() {
           <input
             ref={fileRef}
             type="file"
-            accept="video/mp4,video/*"
+            accept=".mp4,.m4v,.mov,video/mp4"
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
           />
           <Button
             type="button"
             variant="outline"
-            className="w-full min-h-12 justify-start"
-            onClick={() => fileRef.current?.click()}
+            className="w-full min-h-12 justify-start gap-2 overflow-hidden px-3"
+            onClick={openVideoPicker}
             disabled={busy}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            {file ? file.name : "MP4 파일 선택"}
+            <Upload className="h-4 w-4 shrink-0" />
+            <span className="block min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-left [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {file ? file.name : "MP4 파일 선택"}
+            </span>
           </Button>
         </div>
 
