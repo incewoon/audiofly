@@ -1,5 +1,5 @@
 // @ts-expect-error - jsmediatags has no bundled types
-import jsmediatags from "jsmediatags";
+import jsmediatags from "jsmediatags/dist/jsmediatags.min.js";
 
 export interface ReadCover {
   data: ArrayBuffer;
