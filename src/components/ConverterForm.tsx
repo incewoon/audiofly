@@ -170,6 +170,19 @@ export function ConverterForm() {
     setStatus("idle");
   };
 
+  const openVideoPicker = async () => {
+    const f = await pickFileNative({
+      description: "MP4 Video",
+      accept: { "video/mp4": [".mp4", ".m4v", ".mov"] },
+    });
+    if (f) {
+      handleFile(f);
+      return;
+    }
+    fileRef.current?.click();
+  };
+
+
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader>
