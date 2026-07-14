@@ -1,114 +1,38 @@
+## 수정 계획
 
-## 변경 요약
-- 태그 편집 페이지 하단 버튼: "다운로드"가 아니라 **원본 MP3 파일 수정(덮어쓰기 저장)** 방식으로 동작
-- 두 페이지 모두 하단 버튼 실행이 끝나면 **파일 선택 + 모든 입력 필드 + 프리셋을 초기화**
-- 태그 편집 페이지에서 파일 선택 시 **기존 ID3 태그를 읽어 입력 필드를 자동 채움**
+### 1) 상단 헤더 버튼 줄바꿈 + 파일명 오버플로우
+두 페이지(`ConverterForm.tsx`, `TagEditorForm.tsx`) 카드 헤더에서:
+- 제목(`CardTitle`)에 `min-w-0 truncate` 추가, 폰트 크기 소폭 축소(`text-lg`)
+- 오른쪽 링크 버튼에 `whitespace-nowrap shrink-0` 추가하여 "MP3 태그 편집" / "MP4 → MP3 변환" 텍스트가 한 줄로 유지
+- 파일 선택 버튼(`<Button variant="outline">`)의 파일명 span을 별도 요소로 감싸 `block overflow-x-auto whitespace-nowrap` 처리하여 긴 파일명이 박스를 넘지 않고 가로 스크롤
 
-## 라우팅
+### 2) 변환 완료 토스트 문구 + 바로가기
+- 문구를 `"다운로드가 완료되었습니다"`로 변경
+- `sonner`의 `toast.success(..., { action: { label: "바로가기", onClick: ... } })`로 오른쪽 액션 버튼 추가
+- **웹 표준 한계 안내**: 순수 브라우저에서는 임의의 로컬 폴더(다운로드 폴더)를 여는 API가 없음. 대신 다음 전략 사용:
+  - `showSaveFilePicker` 지원 브라우저(데스크톱 Chrome/Edge): 이 API로 저장 후 반환된 `FileSystemFileHandle`을 메모리에 보관 → "바로가기" 클릭 시 저장된 파일을 새 탭에서 열기(`handle.getFile()` → `URL.createObjectURL`)
+  - 미지원(모바일 Chrome 등): 기존 `<a download>` 방식 유지, "바로가기" 클릭 시 방금 만든 blob URL을 새 탭으로 여는 것으로 대체(파일 자체를 재생/미리보기)
+- 진짜 "다운로드 폴더 열기"는 웹 앱에서 불가능하다는 점을 계획 노트로 남김
 
-```text
-src/routes/
-  index.tsx        → /            (MP4 → MP3 변환)
-  tag-editor.tsx   → /tag-editor  (MP3 태그 편집)
-```
+### 3) 동영상 선택 시 노래 제목/파일명에 임의 숫자 표시
+원인: Android Chrome이 `accept="video/mp4,video/*"` + 갤러리에서 선택 시 MediaStore의 숫자 ID(예: `13952.mp4`)를 `file.name`으로 반환.
+조치:
+- `<input>` `accept`를 `".mp4,.m4v,.mov,video/mp4"`로 좁혀 시스템 파일 선택기(Documents/Files) 유도
+- `showOpenFilePicker` 지원 시 우선 사용(`types: [{accept:{'video/mp4':['.mp4']}}]`) → 파일 시스템에서 진짜 파일명 획득
+- 두 경로 모두 실패해도 최소한 사용자에게 문서 선택기가 뜨도록 유도. 완전 해결은 OS 정책상 불가능하므로 안내 툴팁 추가
 
-- 각 페이지 카드 헤더 우측에 상대 페이지로 이동하는 `<Link>` 버튼
-- 각 라우트에 고유 `head()` (title/description/og)
+### 4) MP3 태그 편집 파일 선택이 사진/미디어 선택기로 이동
+원인: `TagEditorForm.tsx`의 mp3 input `accept`가 `audio/mpeg` 또는 유사값이라 Android가 미디어 피커를 띄움.
+조치:
+- `accept=".mp3"` 만 지정(오디오 MIME 제거)하여 Documents(다운로드 폴더 포함) 파일 매니저로 열리도록
+- `showOpenFilePicker` 지원 시 `types: [{accept:{'audio/mpeg':['.mp3']}}]`로 우선 호출
+- 커버 이미지 input은 그대로 둠
 
-## 태그 편집 페이지 (`/tag-editor`)
+### 변경 파일
+- `src/components/ConverterForm.tsx` — 헤더 레이아웃, 파일명 스크롤, accept 조정, showOpenFilePicker 도입, 성공 토스트 문구/액션, blob URL 유지
+- `src/components/TagEditorForm.tsx` — 헤더 레이아웃, 파일명 스크롤, mp3 accept=".mp3" 및 showOpenFilePicker
+- (선택) `src/lib/pick-file.ts` 신규 — showOpenFilePicker 래퍼 공통화
 
-### 레이아웃 (모바일 한 화면)
-
-```text
-┌──────────────────────────────────────────┐
-│ 🎵 MP3 태그 편집        [MP4→MP3 변환 →] │
-├──────────────────────────────────────────┤
-│ [ MP3 파일 선택 ]  선택됨: song.mp3      │
-├──────────────────────────────────────────┤
-│ 노래 제목     [                       ]  │
-│ 노래 참여자   [                       ]  │
-│ 앨범 참여자   [                       ]  │
-│ 앨범명        [           ] 트랙 # [  ]  │
-│ 장르          [                       ]  │
-│ [ 📝 가사 편집 ]  [ 🖼 앨범 아트 설정 ]  │
-├──────────────────────────────────────────┤
-│         [ 태그 저장 (원본 수정) ]        │
-└──────────────────────────────────────────┘
-```
-
-### 파일 선택 시 기존 태그 자동 로드
-- 라이브러리: `jsmediatags` (경량, ID3v1/v2 지원, 브라우저 번들 OK)
-- 파싱 대상 프레임 → 매핑
-  - `TIT2` → 노래 제목
-  - `TPE1` → 노래 참여자
-  - `TPE2` → 앨범 참여자
-  - `TALB` → 앨범명
-  - `TRCK` → 트랙 번호
-  - `TCON` → 장르
-  - `USLT` → 가사 (팝업 상태에 저장)
-  - `APIC` → 앨범 아트 (미리보기 표시, 원본 그대로 유지)
-- 파싱 실패/태그 없음 → 조용히 빈 상태 유지, toast 안내
-
-### 가사(USLT) 팝업 (shadcn Dialog)
-- 큰 `Textarea` (min-h ~ 40vh), 저장/취소, 언어 코드 기본 `kor`
-- 파일에서 읽어온 가사 있으면 프리필
-
-### 앨범 아트(APIC) 팝업 (shadcn Dialog)
-- `accept="image/jpeg,image/png"`, 미리보기 썸네일, 제거 버튼
-- 파일에서 읽어온 커버 있으면 프리필 (Blob URL로 미리보기)
-- 안내: 권장 500×500~1000×1000 정사각, 최대 1MB 권장, JPEG/PNG
-- 초과 시 경고 toast(차단은 안 함)
-
-### "태그 저장 (원본 수정)" 동작
-목표: **업로드된 원본 MP3 파일 자체를 수정**.
-
-브라우저 보안상 사용자가 임의로 선택한 파일에 직접 쓰기는 File System Access API(`showOpenFilePicker` → `createWritable`)가 지원되는 환경에서만 가능. 안드로이드 Chrome은 현재 미지원. 따라서 다음 순서로 시도:
-
-1. `showSaveFilePicker`가 있으면 → 원본 파일명으로 저장 대화상자 표시(사용자가 같은 위치·이름 선택 시 실질적으로 덮어쓰기)
-2. 미지원(안드로이드 등) 폴백 → 원본과 **동일한 파일명**으로 자동 다운로드. OS/브라우저가 "같은 이름 파일 교체" 여부를 처리
-3. 성공 후 toast: "태그가 저장되었습니다. 다운로드 폴더의 동일 이름 파일을 원본에 덮어써 주세요." (폴백일 때만 안내 문구 노출)
-
-파이프라인:
-- 업로드 MP3 → `ArrayBuffer`
-- `browser-id3-writer`로 새 태그 프레임 세팅 후 앞쪽 ID3 태그를 새로 붙인 Blob 반환 (기존 ID3v2 헤더는 라이브러리가 스트립)
-- 파일명은 원본 그대로 (`file.name`) 유지
-
-## MP4→MP3 변환 페이지 (`/`)
-
-- 헤더 우측에 `<Link to="/tag-editor">` "MP3 태그 편집" 버튼 추가
-- 다운로드 성공 후 **폼 전체 초기화** (아래 공통 초기화 규칙 적용)
-
-## 두 페이지 공통: 하단 버튼 완료 후 초기화 규칙
-
-성공적으로 처리(변환+다운로드 / 태그 저장)가 끝나면 다음을 모두 리셋:
-- 선택 파일: `null`, `<input type="file">` value도 `""`로 초기화
-- 텍스트 입력: 제목, 아티스트, 앨범 아티스트, 앨범, 트랙 번호, 파일명, 장르
-- 가사(USLT) 상태, 앨범 아트(APIC) 상태 및 Blob URL revoke
-- 진행률 `0`, 상태 `idle`
-- **파일명 프리셋 선택(1/2)도 기본값 "1"로 초기화**하고 localStorage에서 `audiofly:filename-preset` 제거 → "첫 실행 시 세팅은 1" 규칙과 일치
-- 실패(에러) 시에는 초기화하지 않음(사용자가 수정 후 재시도할 수 있게 유지)
-
-## 태그 라이브러리 확장
-
-`src/lib/id3.ts`:
-- `Id3Tags`에 `genre?: string`, `lyrics?: string`, `cover?: { data: ArrayBuffer; mime: "image/jpeg" | "image/png" }` 추가
-- `writeId3Tags(mp3, tags)` — `TCON`, `USLT`(`{ language: 'kor', description: '', lyrics }`), `APIC`(`{ type: 3, data, description: '' }`) 프레임 추가
-- 신규 `tagExistingMp3(buffer, tags): Blob` — 업로드 MP3에 태그만 다시 쓰는 편의 래퍼
-
-`src/lib/id3-read.ts` (신규):
-- `readId3Tags(file: File): Promise<ReadTags>` — `jsmediatags`로 파싱, 위 매핑 반환. APIC는 `{ data: ArrayBuffer, mime, previewUrl }` 형태로 반환
-
-## 파일 변경 목록
-
-- 추가: `src/routes/tag-editor.tsx`
-- 추가: `src/components/TagEditorForm.tsx` (Dialog 2개 포함)
-- 추가: `src/lib/id3-read.ts`
-- 수정: `src/lib/id3.ts` (프레임 3종 추가, `tagExistingMp3` export)
-- 수정: `src/components/ConverterForm.tsx` (헤더 우측 링크, 성공 후 전체 초기화 + 프리셋 리셋)
-- 의존성 추가: `jsmediatags`
-- shadcn `dialog`, `textarea` 미설치 시 추가
-
-## 범위 외
-- 앨범 아트 자동 리사이즈/압축
-- ID3v1 전용 파일에 대한 v1 유지(모든 파일에 ID3v2 부여)
-- 배치 편집, 태그 프리셋 저장
+### 기술 노트
+- `showSaveFilePicker` / `showOpenFilePicker`는 secure context에서만 동작, iOS Safari 미지원 → 항상 try/catch 후 hidden `<input>` fallback
+- 브라우저에서 "파일 탐색기에서 위치 열기"는 표준 API 부재 — 요청 2의 "바로가기"는 파일 재열람으로 대체
