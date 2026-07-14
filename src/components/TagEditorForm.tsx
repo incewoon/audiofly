@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Loader2, Upload, Music, FileText, Image as ImageIcon, ArrowLeftRight } from "lucide-react";
 import { tagExistingMp3, type Id3Cover } from "@/lib/id3";
 import { readId3Tags } from "@/lib/id3-read";
+import { pickFileNative } from "@/lib/pick-file";
 
 type Status = "idle" | "reading" | "saving";
 
@@ -92,6 +93,19 @@ export function TagEditorForm() {
     setStatus("idle");
     toast.success("기존 태그를 불러왔습니다.");
   };
+
+  const openMp3Picker = async () => {
+    const f = await pickFileNative({
+      description: "MP3 Audio",
+      accept: { "audio/mpeg": [".mp3"] },
+    });
+    if (f) {
+      handleFile(f);
+      return;
+    }
+    fileRef.current?.click();
+  };
+
 
   const handleCoverPick = async (f: File | null) => {
     if (!f) return;
@@ -175,13 +189,14 @@ export function TagEditorForm() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Music className="h-5 w-5" /> MP3 태그 편집
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
+            <Music className="h-5 w-5 shrink-0" />
+            <span className="truncate">MP3 태그 편집</span>
           </CardTitle>
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             MP4 → MP3 변환
@@ -192,20 +207,22 @@ export function TagEditorForm() {
         <input
           ref={fileRef}
           type="file"
-          accept="audio/mpeg,audio/mp3,.mp3"
+          accept=".mp3"
           className="hidden"
           onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
         />
         <Button
           type="button"
           variant="outline"
-          className="w-full min-h-11 justify-start"
-          onClick={() => fileRef.current?.click()}
+          className="w-full min-h-11 justify-start gap-2 overflow-hidden px-3"
+          onClick={openMp3Picker}
           disabled={busy}
         >
-          <Upload className="mr-2 h-4 w-4" />
-          {file ? file.name : "MP3 파일 선택"}
-          {status === "reading" && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
+          <Upload className="h-4 w-4 shrink-0" />
+          <span className="block min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-left [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {file ? file.name : "MP3 파일 선택"}
+          </span>
+          {status === "reading" && <Loader2 className="ml-auto h-4 w-4 shrink-0 animate-spin" />}
         </Button>
 
         <div className="space-y-2.5">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { convertMp4ToMp3 } from "@/lib/convert";
 import { writeId3Tags } from "@/lib/id3";
+import { pickFileNative } from "@/lib/pick-file";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,17 +122,29 @@ export function ConverterForm() {
         album: album || undefined,
         trackNumber: trackNumber || undefined,
       });
+      const outName = `${(filename || stripExt(file.name)).trim() || "output"}.mp3`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(filename || stripExt(file.name)).trim() || "output"}.mp3`;
+      a.download = outName;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
       setStatus("done");
       setProgress(1);
-      toast.success("변환 완료 — 다운로드가 시작되었습니다.");
+      toast.success("다운로드가 완료되었습니다", {
+        action: {
+          label: "바로가기",
+          onClick: () => {
+            // Web has no API to open the OS Downloads folder; open the file itself in a new tab.
+            window.open(url, "_blank", "noopener");
+          },
+        },
+        // Revoke after the toast disappears so the "바로가기" action still works.
+        onAutoClose: () => URL.revokeObjectURL(url),
+        onDismiss: () => URL.revokeObjectURL(url),
+        duration: 10000,
+      });
       // Full reset after successful download
       resetAll();
     } catch (err) {
@@ -157,16 +170,30 @@ export function ConverterForm() {
     setStatus("idle");
   };
 
+  const openVideoPicker = async () => {
+    const f = await pickFileNative({
+      description: "MP4 Video",
+      accept: { "video/mp4": [".mp4", ".m4v", ".mov"] },
+    });
+    if (f) {
+      handleFile(f);
+      return;
+    }
+    fileRef.current?.click();
+  };
+
+
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Music className="h-5 w-5" /> MP4 → MP3 변환
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
+            <Music className="h-5 w-5 shrink-0" />
+            <span className="truncate">MP4 → MP3 변환</span>
           </CardTitle>
           <Link
             to="/tag-editor"
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
           >
             <Tag className="h-3.5 w-3.5" />
             MP3 태그 편집
@@ -180,19 +207,21 @@ export function ConverterForm() {
           <input
             ref={fileRef}
             type="file"
-            accept="video/mp4,video/*"
+            accept=".mp4,.m4v,.mov,video/mp4"
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
           />
           <Button
             type="button"
             variant="outline"
-            className="w-full min-h-12 justify-start"
-            onClick={() => fileRef.current?.click()}
+            className="w-full min-h-12 justify-start gap-2 overflow-hidden px-3"
+            onClick={openVideoPicker}
             disabled={busy}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            {file ? file.name : "MP4 파일 선택"}
+            <Upload className="h-4 w-4 shrink-0" />
+            <span className="block min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-left [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {file ? file.name : "MP4 파일 선택"}
+            </span>
           </Button>
         </div>
 
