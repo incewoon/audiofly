@@ -94,6 +94,19 @@ export function TagEditorForm() {
     toast.success("기존 태그를 불러왔습니다.");
   };
 
+  const openMp3Picker = async () => {
+    const f = await pickFileNative({
+      description: "MP3 Audio",
+      accept: { "audio/mpeg": [".mp3"] },
+    });
+    if (f) {
+      handleFile(f);
+      return;
+    }
+    fileRef.current?.click();
+  };
+
+
   const handleCoverPick = async (f: File | null) => {
     if (!f) return;
     if (!["image/jpeg", "image/png"].includes(f.type)) {
