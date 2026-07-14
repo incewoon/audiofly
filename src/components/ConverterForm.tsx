@@ -122,17 +122,29 @@ export function ConverterForm() {
         album: album || undefined,
         trackNumber: trackNumber || undefined,
       });
+      const outName = `${(filename || stripExt(file.name)).trim() || "output"}.mp3`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(filename || stripExt(file.name)).trim() || "output"}.mp3`;
+      a.download = outName;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
       setStatus("done");
       setProgress(1);
-      toast.success("변환 완료 — 다운로드가 시작되었습니다.");
+      toast.success("다운로드가 완료되었습니다", {
+        action: {
+          label: "바로가기",
+          onClick: () => {
+            // Web has no API to open the OS Downloads folder; open the file itself in a new tab.
+            window.open(url, "_blank", "noopener");
+          },
+        },
+        // Revoke after the toast disappears so the "바로가기" action still works.
+        onAutoClose: () => URL.revokeObjectURL(url),
+        onDismiss: () => URL.revokeObjectURL(url),
+        duration: 10000,
+      });
       // Full reset after successful download
       resetAll();
     } catch (err) {
