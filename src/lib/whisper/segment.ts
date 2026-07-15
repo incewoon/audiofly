@@ -1,5 +1,5 @@
 // Silence-based post-processor: splits/aligns Whisper segments on silent gaps.
-import type { WhisperSegment } from "./transcribe.client";
+import type { WhisperSegment } from "./transcribe";
 
 interface SilenceOptions {
   /** RMS threshold below which a frame counts as silent, 0..1 */

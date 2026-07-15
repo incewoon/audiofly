@@ -69,7 +69,7 @@ export function LyricsDialog({
     setAsrPct(0);
     try {
       const [{ transcribeMp3 }, { detectSilenceGaps, splitOnSilence, normalizeSegments }] = await Promise.all([
-        import("@/lib/whisper/transcribe.client"),
+        import("@/lib/whisper/transcribe"),
         import("@/lib/whisper/segment"),
       ]);
 
