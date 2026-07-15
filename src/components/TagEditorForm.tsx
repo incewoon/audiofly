@@ -292,25 +292,19 @@ export function TagEditorForm() {
         </p>
       </CardContent>
 
-      {/* 가사 팝업 */}
-      <Dialog open={lyricsOpen} onOpenChange={setLyricsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>가사 편집 (USLT)</DialogTitle>
-            <DialogDescription>일반 가사(USLT) 프레임에 저장됩니다. 언어 코드: kor</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={lyricsDraft}
-            onChange={(e) => setLyricsDraft(e.target.value)}
-            placeholder="가사를 붙여넣으세요"
-            className="min-h-[40vh]"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLyricsOpen(false)}>취소</Button>
-            <Button onClick={() => { setLyrics(lyricsDraft); setLyricsOpen(false); }}>저장</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 가사 편집 팝업 (USLT/SYLT 토글 + 음성인식) */}
+      <LyricsDialog
+        open={lyricsOpen}
+        onOpenChange={setLyricsOpen}
+        mp3File={file}
+        initialLyrics={lyrics}
+        initialSynced={syncedLyrics}
+        onSave={({ lyrics: l, syncedLyrics: sl }) => {
+          setLyrics(l);
+          setSyncedLyrics(sl);
+        }}
+      />
+
 
       {/* 앨범 아트 팝업 */}
       <Dialog open={coverOpen} onOpenChange={setCoverOpen}>
