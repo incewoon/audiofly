@@ -37,8 +37,8 @@ export function TagEditorForm() {
   const [genre, setGenre] = useState("");
 
   const [lyrics, setLyrics] = useState("");
+  const [syncedLyrics, setSyncedLyrics] = useState<SyltLine[]>([]);
   const [lyricsOpen, setLyricsOpen] = useState(false);
-  const [lyricsDraft, setLyricsDraft] = useState("");
 
   const [cover, setCover] = useState<Id3Cover | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
