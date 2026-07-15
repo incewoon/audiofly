@@ -86,7 +86,7 @@ export function TagEditorForm() {
     setTrackNumber(tags.trackNumber ?? "");
     setGenre(tags.genre ?? "");
     setLyrics(tags.lyrics ?? "");
-    setLyricsDraft(tags.lyrics ?? "");
+    setSyncedLyrics(tags.syncedLyrics ?? []);
     if (tags.cover) {
       setCover({ data: tags.cover.data, mime: tags.cover.mime });
       setCoverPreview(tags.cover.previewUrl);
