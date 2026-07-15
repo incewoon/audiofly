@@ -46,6 +46,8 @@
     "@tanstack/react-router": "^1.170.16",
     "@tanstack/react-start": "^1.168.26",
     "@tanstack/router-plugin": "^1.168.18",
+    "@transcribe/shout": "^1.0.7",
+    "@transcribe/transcriber": "^3.0.1",
     "browser-id3-writer": "^6.3.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
