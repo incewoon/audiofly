@@ -43,7 +43,7 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
       cb?.onModelProgress?.(loaded, total || loaded);
     }
   }
-  const blob = new Blob(chunks, { type: "application/octet-stream" });
+  const blob = new Blob(chunks as BlobPart[], { type: "application/octet-stream" });
   await cache.put(
     MODEL_CACHE_KEY,
     new Response(blob, {
