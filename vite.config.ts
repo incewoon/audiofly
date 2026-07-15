@@ -6,11 +6,31 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Enable cross-origin isolation so SharedArrayBuffer works (required by whisper.cpp WASM).
+const coopCoepHeaders = () => ({
+  name: "coop-coep-headers",
+  configureServer(server: any) {
+    server.middlewares.use((_req: any, res: any, next: any) => {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
+      next();
+    });
+  },
+  configurePreviewServer(server: any) {
+    server.middlewares.use((_req: any, res: any, next: any) => {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
+      next();
+    });
+  },
+});
+
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
   plugins: [
+    coopCoepHeaders(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: null,
@@ -40,3 +60,4 @@ export default defineConfig({
     }),
   ],
 });
+
