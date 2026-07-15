@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -15,11 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Upload, Music, FileText, Image as ImageIcon, ArrowLeftRight } from "lucide-react";
-import { tagExistingMp3, type Id3Cover } from "@/lib/id3";
+import { tagExistingMp3, type Id3Cover, type SyltLine } from "@/lib/id3";
 import { readId3Tags } from "@/lib/id3-read";
 import { pickFileNative } from "@/lib/pick-file";
+import { LyricsDialog } from "@/components/LyricsDialog";
 
 type Status = "idle" | "reading" | "saving";
+
 
 export function TagEditorForm() {
   const fileRef = useRef<HTMLInputElement>(null);
