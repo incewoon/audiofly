@@ -145,6 +145,7 @@ export function TagEditorForm() {
         trackNumber: trackNumber || undefined,
         genre: genre || undefined,
         lyrics: lyrics || undefined,
+        syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined,
         cover: cover ?? undefined,
       });
 
