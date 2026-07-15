@@ -260,10 +260,10 @@ export function TagEditorForm() {
               type="button"
               variant="outline"
               className="min-h-11"
-              onClick={() => { setLyricsDraft(lyrics); setLyricsOpen(true); }}
+              onClick={() => setLyricsOpen(true)}
             >
               <FileText className="mr-1.5 h-4 w-4" />
-              가사 편집{lyrics ? " ✓" : ""}
+              가사 편집{lyrics || syncedLyrics.length > 0 ? " ✓" : ""}
             </Button>
             <Button
               type="button"
