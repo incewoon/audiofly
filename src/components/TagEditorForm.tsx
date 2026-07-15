@@ -62,7 +62,7 @@ export function TagEditorForm() {
     setTrackNumber("");
     setGenre("");
     setLyrics("");
-    setLyricsDraft("");
+    setSyncedLyrics([]);
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     setCover(null);
     setCoverPreview(null);
