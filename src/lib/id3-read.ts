@@ -15,19 +15,37 @@ export interface ReadTags {
   trackNumber?: string;
   genre?: string;
   lyrics?: string;
+  syncedLyrics?: { timeMs: number; text: string }[];
   cover?: ReadCover;
 }
 
 function pickString(v: unknown): string | undefined {
   if (typeof v === "string") return v || undefined;
   if (v && typeof v === "object") {
-    // USLT: { language, descriptor, lyrics }
-    // TXXX / others may have .text
     const o = v as Record<string, unknown>;
     if (typeof o.lyrics === "string") return o.lyrics;
     if (typeof o.text === "string") return o.text;
   }
   return undefined;
+}
+
+function pickSylt(raw: any): { timeMs: number; text: string }[] | undefined {
+  const data = raw?.data ?? raw;
+  const arr = data?.synchronisedText ?? data?.text ?? data?.lyrics;
+  if (!Array.isArray(arr)) return undefined;
+  const out: { timeMs: number; text: string }[] = [];
+  for (const entry of arr) {
+    if (Array.isArray(entry) && entry.length >= 2) {
+      const text = String(entry[0] ?? "").trim();
+      const timeMs = Number(entry[1] ?? 0);
+      if (text) out.push({ timeMs, text });
+    } else if (entry && typeof entry === "object") {
+      const text = String(entry.text ?? "").trim();
+      const timeMs = Number(entry.timestamp ?? entry.time ?? 0);
+      if (text) out.push({ timeMs, text });
+    }
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 export function readId3Tags(file: File): Promise<ReadTags> {
@@ -43,7 +61,9 @@ export function readId3Tags(file: File): Promise<ReadTags> {
             trackNumber: pickString(tags.track),
             genre: pickString(tags.genre),
             lyrics: pickString(tags.lyrics) ?? pickString(tags["USLT"]?.data),
+            syncedLyrics: pickSylt(tags["SYLT"]),
           };
+
 
           const picture = tags.picture;
           if (picture && picture.data) {

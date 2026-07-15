@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -15,11 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Upload, Music, FileText, Image as ImageIcon, ArrowLeftRight } from "lucide-react";
-import { tagExistingMp3, type Id3Cover } from "@/lib/id3";
+import { tagExistingMp3, type Id3Cover, type SyltLine } from "@/lib/id3";
 import { readId3Tags } from "@/lib/id3-read";
 import { pickFileNative } from "@/lib/pick-file";
+import { LyricsDialog } from "@/components/LyricsDialog";
 
 type Status = "idle" | "reading" | "saving";
+
 
 export function TagEditorForm() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -36,8 +37,8 @@ export function TagEditorForm() {
   const [genre, setGenre] = useState("");
 
   const [lyrics, setLyrics] = useState("");
+  const [syncedLyrics, setSyncedLyrics] = useState<SyltLine[]>([]);
   const [lyricsOpen, setLyricsOpen] = useState(false);
-  const [lyricsDraft, setLyricsDraft] = useState("");
 
   const [cover, setCover] = useState<Id3Cover | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export function TagEditorForm() {
     setTrackNumber("");
     setGenre("");
     setLyrics("");
-    setLyricsDraft("");
+    setSyncedLyrics([]);
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     setCover(null);
     setCoverPreview(null);
@@ -85,7 +86,7 @@ export function TagEditorForm() {
     setTrackNumber(tags.trackNumber ?? "");
     setGenre(tags.genre ?? "");
     setLyrics(tags.lyrics ?? "");
-    setLyricsDraft(tags.lyrics ?? "");
+    setSyncedLyrics(tags.syncedLyrics ?? []);
     if (tags.cover) {
       setCover({ data: tags.cover.data, mime: tags.cover.mime });
       setCoverPreview(tags.cover.previewUrl);
@@ -144,6 +145,7 @@ export function TagEditorForm() {
         trackNumber: trackNumber || undefined,
         genre: genre || undefined,
         lyrics: lyrics || undefined,
+        syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined,
         cover: cover ?? undefined,
       });
 
@@ -258,10 +260,10 @@ export function TagEditorForm() {
               type="button"
               variant="outline"
               className="min-h-11"
-              onClick={() => { setLyricsDraft(lyrics); setLyricsOpen(true); }}
+              onClick={() => setLyricsOpen(true)}
             >
               <FileText className="mr-1.5 h-4 w-4" />
-              가사 편집{lyrics ? " ✓" : ""}
+              가사 편집{lyrics || syncedLyrics.length > 0 ? " ✓" : ""}
             </Button>
             <Button
               type="button"
@@ -290,25 +292,19 @@ export function TagEditorForm() {
         </p>
       </CardContent>
 
-      {/* 가사 팝업 */}
-      <Dialog open={lyricsOpen} onOpenChange={setLyricsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>가사 편집 (USLT)</DialogTitle>
-            <DialogDescription>일반 가사(USLT) 프레임에 저장됩니다. 언어 코드: kor</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={lyricsDraft}
-            onChange={(e) => setLyricsDraft(e.target.value)}
-            placeholder="가사를 붙여넣으세요"
-            className="min-h-[40vh]"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLyricsOpen(false)}>취소</Button>
-            <Button onClick={() => { setLyrics(lyricsDraft); setLyricsOpen(false); }}>저장</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 가사 편집 팝업 (USLT/SYLT 토글 + 음성인식) */}
+      <LyricsDialog
+        open={lyricsOpen}
+        onOpenChange={setLyricsOpen}
+        mp3File={file}
+        initialLyrics={lyrics}
+        initialSynced={syncedLyrics}
+        onSave={({ lyrics: l, syncedLyrics: sl }) => {
+          setLyrics(l);
+          setSyncedLyrics(sl);
+        }}
+      />
+
 
       {/* 앨범 아트 팝업 */}
       <Dialog open={coverOpen} onOpenChange={setCoverOpen}>
