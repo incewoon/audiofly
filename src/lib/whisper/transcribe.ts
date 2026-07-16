@@ -16,12 +16,16 @@ export interface TranscribeCallbacks {
 // Default: quantized base multilingual (~57MB). Good Korean support.
 const MODEL_URL =
   "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin";
-const MODEL_CACHE_KEY = "whisper-model:ggml-base-q5_1.bin";
+// Cache Storage requires an http(s) or same-origin URL as the Request key —
+// custom schemes like "whisper-model:" throw
+// `Failed to execute 'put' on 'Cache': Request scheme 'whisper-model' is unsupported`.
+// We use a stable same-origin URL that never needs to actually exist on the server.
+const MODEL_CACHE_URL = "/whisper-models/ggml-base-q5_1.bin";
 
 async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
-  // IndexedDB Cache Storage
   const cache = await caches.open("whisper-models-v1");
-  const cached = await cache.match(MODEL_CACHE_KEY);
+  const cacheKey = new Request(MODEL_CACHE_URL);
+  const cached = await cache.match(cacheKey);
   if (cached) {
     const buf = await cached.arrayBuffer();
     cb?.onModelProgress?.(buf.byteLength, buf.byteLength);
@@ -45,7 +49,7 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
   }
   const blob = new Blob(chunks as BlobPart[], { type: "application/octet-stream" });
   await cache.put(
-    MODEL_CACHE_KEY,
+    cacheKey,
     new Response(blob, {
       headers: { "content-type": "application/octet-stream", "content-length": String(blob.size) },
     }),
