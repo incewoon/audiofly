@@ -41,8 +41,12 @@ export default defineConfig({
       workbox: {
         navigateFallback: "/",
         navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//, /^\/__l5e\//],
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest,json}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Include wasm + worker chunks so ffmpeg/whisper work offline once precached.
+        globPatterns: [
+          "**/*.{js,mjs,css,html,svg,png,ico,webmanifest,json,wasm,worker.js}",
+        ],
+        // ffmpeg-core.wasm is ~30MB; raise the precache limit accordingly.
+        maximumFileSizeToCacheInBytes: 60 * 1024 * 1024,
         runtimeCaching: [
           {
             // Externalized ffmpeg core (wasm + js) via Lovable big-asset proxy
@@ -53,6 +57,30 @@ export default defineConfig({
               expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 90 },
               cacheableResponse: { statuses: [0, 200] },
               rangeRequests: true,
+            },
+          },
+          {
+            // Whisper.cpp GGML model from Hugging Face — cache after first
+            // download so SYLT auto-extract works fully offline.
+            urlPattern: ({ url }) =>
+              url.origin === "https://huggingface.co" && /\/ggml-.*\.bin/.test(url.pathname),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "whisper-models",
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+              rangeRequests: true,
+            },
+          },
+          {
+            // Locally-served whisper model path used by the app's own Cache
+            // Storage key — kept here for parity when navigated directly.
+            urlPattern: /\/whisper-models\/.*/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "whisper-models",
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
