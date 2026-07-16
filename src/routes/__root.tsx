@@ -124,6 +124,17 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Register the app service worker on the client so the app works offline
+  // once installed. registerAppSW() has internal guards that skip dev,
+  // Lovable preview, iframe embeds, and `?sw=off`.
+  // Verify on the published site:
+  //   1) Load the app fully online.
+  //   2) DevTools → Application → Service Workers: `/service-worker.js` = activated.
+  //   3) Toggle Network → Offline and reload — the app shell should still load.
+  useEffect(() => {
+    registerAppSW();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
