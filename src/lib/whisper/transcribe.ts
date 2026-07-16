@@ -59,6 +59,15 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
 
 let cachedTranscriber: any = null;
 
+function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
+  return Promise.race<T>([
+    p,
+    new Promise<T>((_, rej) =>
+      setTimeout(() => rej(new Error(`${tag} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 export async function transcribeMp3(
   file: File,
   cb: TranscribeCallbacks = {},
@@ -69,36 +78,76 @@ export async function transcribeMp3(
     );
   }
 
+  console.log("[whisper] loading model…");
   const model = await loadModelBlob(cb);
+  console.log("[whisper] model ready:", model.size, "bytes");
 
+  console.log("[whisper] importing transcriber+shout…");
   const [{ FileTranscriber }, shoutMod] = await Promise.all([
     import("@transcribe/transcriber"),
     import("@transcribe/shout"),
   ]);
   const createModule = (shoutMod as any).default;
-
-  if (!cachedTranscriber) {
-    cachedTranscriber = new FileTranscriber({
-      createModule,
-      model: model as any,
-      onProgress: (p: number) => cb.onProgress?.(p),
-    });
-    await cachedTranscriber.init();
-  } else {
-    cachedTranscriber.onProgress = (p: number) => cb.onProgress?.(p);
+  if (typeof createModule !== "function") {
+    throw new Error("Whisper WASM 모듈 로드 실패: @transcribe/shout default export가 함수가 아님");
   }
 
-  const result = await cachedTranscriber.transcribe(file, {
-    lang: "ko",
-    token_timestamps: true,
-    suppress_non_speech: true,
-  });
+  try {
+    if (!cachedTranscriber) {
+      console.log("[whisper] initializing FileTranscriber…");
+      cachedTranscriber = new FileTranscriber({
+        createModule,
+        model: model as any,
+        onProgress: (p: number) => {
+          console.log("[whisper] progress", p);
+          cb.onProgress?.(p);
+        },
+      });
+      await withTimeout(cachedTranscriber.init(), 120_000, "FileTranscriber.init()");
+      console.log("[whisper] init done");
+    } else {
+      cachedTranscriber.onProgress = (p: number) => {
+        console.log("[whisper] progress", p);
+        cb.onProgress?.(p);
+      };
+    }
 
-  const segments: WhisperSegment[] = (result.transcription ?? []).map((s: any) => ({
-    startMs: Math.max(0, Math.round(s.offsets?.from ?? 0)),
-    endMs: Math.max(0, Math.round(s.offsets?.to ?? 0)),
-    text: (s.text ?? "").trim(),
-  })).filter((s: WhisperSegment) => s.text.length > 0);
+    console.log("[whisper] transcribing…");
+    const result: any = await withTimeout(
+      cachedTranscriber.transcribe(file, {
+        lang: "ko",
+        token_timestamps: true,
+        suppress_non_speech: true,
+      }),
+      10 * 60_000,
+      "FileTranscriber.transcribe()",
+    );
+    console.log("[whisper] transcribe done", result);
 
-  return segments;
+    const segments: WhisperSegment[] = (result.transcription ?? [])
+      .map((s: any) => ({
+        startMs: Math.max(0, Math.round(s.offsets?.from ?? 0)),
+        endMs: Math.max(0, Math.round(s.offsets?.to ?? 0)),
+        text: (s.text ?? "").trim(),
+      }))
+      .filter((s: WhisperSegment) => s.text.length > 0);
+
+    return segments;
+  } catch (err) {
+    // Drop the cached instance so the next attempt gets a fresh worker.
+    cachedTranscriber = null;
+    console.error("[whisper] failed", err);
+    throw err;
+  }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Offline verification (published site only — SW is disabled in preview):
+//   1) Load app once online. Convert one MP4 → MP3 to precache ffmpeg-core.
+//   2) Open lyrics editor → SYLT → "음성인식으로 자동추출" once online to
+//      cache the Whisper model (~57MB) under the "whisper-models" cache.
+//   3) DevTools → Application → Service Workers: /service-worker.js activated.
+//   4) DevTools → Network → Offline, reload the app.
+//   5) MP4→MP3 conversion should still work (ffmpeg-core cache hit).
+//   6) SYLT auto-extract should still work (whisper-models cache hit).
+// ─────────────────────────────────────────────────────────────
