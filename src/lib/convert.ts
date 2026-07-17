@@ -1,5 +1,5 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { fetchFile } from "@ffmpeg/util";
 
 // Local (public/ffmpeg/ffmpeg-core.js) + externalized Lovable big-asset wasm.
 const CORE_JS_URL = "/ffmpeg/ffmpeg-core.js";
@@ -39,6 +39,13 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
     await res.clone().blob();
   };
 
+  const toCachedBlobURL = async (url: string, type: string) => {
+    const res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
+    if (!res.ok) throw new Error(`${url} 로드 실패 (${res.status})`);
+    const blob = await res.blob();
+    return URL.createObjectURL(new Blob([blob], { type }));
+  };
+
   loadPromise = Promise.resolve()
     .then(async () => {
       log("checking ffmpeg core files");
@@ -48,8 +55,8 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       // accepts Blob URLs, so we fetch the cached engine files first and import
       // those object URLs instead. This also keeps the path SW-cache friendly.
       const [coreURL, wasmURL] = await Promise.all([
-        toBlobURL(CORE_JS_URL, "text/javascript"),
-        toBlobURL(CORE_WASM_URL, "application/wasm"),
+        toCachedBlobURL(CORE_JS_URL, "text/javascript"),
+        toCachedBlobURL(CORE_WASM_URL, "application/wasm"),
       ]);
       await withTimeout(
         ff.load({ coreURL, wasmURL }),
