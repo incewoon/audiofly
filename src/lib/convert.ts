@@ -1,5 +1,5 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 // Local (public/ffmpeg/ffmpeg-core.js) + externalized Lovable big-asset wasm.
 const CORE_JS_URL = "/ffmpeg/ffmpeg-core.js";
@@ -44,8 +44,15 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       log("checking ffmpeg core files");
       await Promise.all([assertReachable(CORE_JS_URL), assertReachable(CORE_WASM_URL)]);
       log("loading ffmpeg core");
+      // Vite dev/prod can reject direct dynamic imports from /public. ffmpeg.wasm
+      // accepts Blob URLs, so we fetch the cached engine files first and import
+      // those object URLs instead. This also keeps the path SW-cache friendly.
+      const [coreURL, wasmURL] = await Promise.all([
+        toBlobURL(CORE_JS_URL, "text/javascript"),
+        toBlobURL(CORE_WASM_URL, "application/wasm"),
+      ]);
       await withTimeout(
-        ff.load({ coreURL: CORE_JS_URL, wasmURL: CORE_WASM_URL }),
+        ff.load({ coreURL, wasmURL }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
       );
