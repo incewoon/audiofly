@@ -60,7 +60,7 @@ export default defineConfig({
           {
             // Local engine JS files used by ffmpeg and whisper pthread workers.
             urlPattern: ({ url }) =>
-              url.origin === self.location.origin &&
+              url.origin === globalThis.location.origin &&
               (url.pathname === "/ffmpeg/ffmpeg-core.js" || url.pathname === "/whisper/shout.wasm.js"),
             handler: "CacheFirst",
             options: {
@@ -72,7 +72,7 @@ export default defineConfig({
           {
             // Externalized ffmpeg core wasm and bundled Whisper GGML model.
             urlPattern: ({ url }) =>
-              url.origin === self.location.origin &&
+              url.origin === globalThis.location.origin &&
               /^\/__l5e\/assets-v1\//.test(url.pathname) &&
               /(ffmpeg-core\.wasm|ggml-base-q5_1\.bin)$/.test(url.pathname),
             handler: "CacheFirst",
