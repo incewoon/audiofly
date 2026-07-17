@@ -80,6 +80,7 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
 }
 
 let cachedTranscriber: any = null;
+let shoutModuleUrlPromise: Promise<string> | null = null;
 
 function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
   return Promise.race<T>([
@@ -102,6 +103,22 @@ async function assertAudioDecodable(file: File) {
   } finally {
     ctx.close?.();
   }
+}
+
+async function getShoutModuleUrl() {
+  if (!shoutModuleUrlPromise) {
+    shoutModuleUrlPromise = fetch(SHOUT_WASM_JS_URL, { cache: "force-cache", credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Whisper WASM JS 로드 실패 (${res.status})`);
+        const blob = await res.blob();
+        return URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
+      })
+      .catch((err) => {
+        shoutModuleUrlPromise = null;
+        throw err;
+      });
+  }
+  return shoutModuleUrlPromise;
 }
 
 async function resetTranscriber() {
@@ -129,9 +146,10 @@ export async function transcribeMp3(
   await assertAudioDecodable(file);
 
   console.log("[whisper] importing transcriber + local shout wasm module…");
+  const shoutModuleUrl = await getShoutModuleUrl();
   const [{ FileTranscriber }, shoutMod] = await Promise.all([
     import("@transcribe/transcriber"),
-    import(/* @vite-ignore */ SHOUT_WASM_JS_URL),
+    import(/* @vite-ignore */ shoutModuleUrl),
   ]);
   const createModule = (shoutMod as any).default;
   if (typeof createModule !== "function") {
