@@ -23,35 +23,39 @@ export interface Id3Tags {
   cover?: Id3Cover | null;
 }
 
+function safeSetFrame(writer: ID3Writer, frame: string, value: unknown) {
+  try {
+    writer.setFrame(frame as any, value as any);
+  } catch (err) {
+    console.warn(`[id3] ${frame} frame write failed`, err);
+  }
+}
+
 function applyTags(writer: ID3Writer, tags: Id3Tags) {
-  if (tags.title) writer.setFrame("TIT2", tags.title);
-  if (tags.artist) writer.setFrame("TPE1", [tags.artist]);
-  if (tags.albumArtist) writer.setFrame("TPE2", tags.albumArtist);
-  if (tags.album) writer.setFrame("TALB", tags.album);
-  if (tags.trackNumber) writer.setFrame("TRCK", tags.trackNumber);
-  if (tags.genre) writer.setFrame("TCON", [tags.genre]);
+  if (tags.title) safeSetFrame(writer, "TIT2", tags.title);
+  if (tags.artist) safeSetFrame(writer, "TPE1", [tags.artist]);
+  if (tags.albumArtist) safeSetFrame(writer, "TPE2", tags.albumArtist);
+  if (tags.album) safeSetFrame(writer, "TALB", tags.album);
+  if (tags.trackNumber) safeSetFrame(writer, "TRCK", tags.trackNumber);
+  if (tags.genre) safeSetFrame(writer, "TCON", [tags.genre]);
   if (tags.lyrics) {
-    writer.setFrame("USLT", {
+    safeSetFrame(writer, "USLT", {
       language: "kor",
       description: "",
       lyrics: tags.lyrics,
     });
   }
   if (tags.syncedLyrics && tags.syncedLyrics.length > 0) {
-    try {
-      writer.setFrame("SYLT", {
-        type: 1, // Lyrics
-        timestampFormat: 2, // Milliseconds
-        language: "kor",
-        description: "",
-        text: tags.syncedLyrics.map((l) => [l.text, Math.max(0, Math.round(l.timeMs))] as [string, number]),
-      } as any);
-    } catch (e) {
-      console.warn("SYLT frame write failed:", e);
-    }
+    safeSetFrame(writer, "SYLT", {
+      type: 1, // Lyrics
+      timestampFormat: 2, // Milliseconds
+      language: "kor",
+      description: "",
+      text: tags.syncedLyrics.map((l) => [l.text, Math.max(0, Math.round(l.timeMs))] as [string, number]),
+    });
   }
   if (tags.cover) {
-    writer.setFrame("APIC", {
+    safeSetFrame(writer, "APIC", {
       type: 3,
       data: tags.cover.data,
       description: "",

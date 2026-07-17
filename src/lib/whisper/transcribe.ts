@@ -13,17 +13,30 @@ export interface TranscribeCallbacks {
   onSegment?: (seg: WhisperSegment) => void;
 }
 
-// Default: quantized base multilingual (~57MB). Good Korean support.
-const MODEL_URL =
-  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin";
+// Default: quantized base multilingual (~57MB), hosted as a same-origin
+// AudioFly asset so it can be cached for offline use without third-party fetches.
+const MODEL_URL = "/__l5e/assets-v1/a587ef4c-520e-4b8b-8a89-37adfbfed4f0/ggml-base-q5_1.bin";
 // Cache Storage requires an http(s) or same-origin URL as the Request key —
 // custom schemes like "whisper-model:" throw
 // `Failed to execute 'put' on 'Cache': Request scheme 'whisper-model' is unsupported`.
-// We use a stable same-origin URL that never needs to actually exist on the server.
-const MODEL_CACHE_URL = "/whisper-models/ggml-base-q5_1.bin";
+const MODEL_CACHE_URL = MODEL_URL;
+const SHOUT_WASM_JS_URL = "/whisper/shout.wasm.js";
+const MODEL_CACHE_NAME = "audiofly-media-engines-v2";
+const INIT_TIMEOUT_MS = 120_000;
+const TRANSCRIBE_TIMEOUT_MS = 10 * 60_000;
+
+function makeAbortableTimeout(ms: number, tag: string) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(`${tag} timed out after ${ms}ms`), ms);
+  return { controller, clear: () => window.clearTimeout(timeout) };
+}
 
 async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
-  const cache = await caches.open("whisper-models-v1");
+  if (!("caches" in globalThis)) {
+    throw new Error("이 브라우저는 오프라인 모델 캐시를 지원하지 않습니다.");
+  }
+
+  const cache = await caches.open(MODEL_CACHE_NAME);
   const cacheKey = new Request(MODEL_CACHE_URL);
   const cached = await cache.match(cacheKey);
   if (cached) {
@@ -32,7 +45,16 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
     return new File([buf], "model.bin", { type: "application/octet-stream" });
   }
 
-  const res = await fetch(MODEL_URL);
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error("음성인식 모델이 아직 캐시되지 않았습니다. 최초 1회는 온라인 상태에서 자동추출을 실행해 주세요.");
+  }
+
+  const modelFetch = makeAbortableTimeout(120_000, "Whisper model download");
+  const res = await fetch(MODEL_URL, {
+    cache: "force-cache",
+    credentials: "same-origin",
+    signal: modelFetch.controller.signal,
+  }).finally(modelFetch.clear);
   if (!res.ok || !res.body) throw new Error(`모델 다운로드 실패 (${res.status})`);
   const total = Number(res.headers.get("content-length") ?? 0);
   const reader = res.body.getReader();
@@ -54,10 +76,11 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
       headers: { "content-type": "application/octet-stream", "content-length": String(blob.size) },
     }),
   );
-  return new File([blob], "model.bin", { type: "application/octet-stream" });
+  return new File([blob], "ggml-base-q5_1.bin", { type: "application/octet-stream" });
 }
 
 let cachedTranscriber: any = null;
+let shoutModuleUrlPromise: Promise<string> | null = null;
 
 function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
   return Promise.race<T>([
@@ -66,6 +89,43 @@ function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
       setTimeout(() => rej(new Error(`${tag} timed out after ${ms}ms`)), ms),
     ),
   ]);
+}
+
+async function assertAudioDecodable(file: File) {
+  const AudioCtx = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+  if (!AudioCtx) throw new Error("이 브라우저는 오디오 디코딩을 지원하지 않습니다.");
+  const ctx = new AudioCtx({ sampleRate: 16000 });
+  try {
+    const buf = await file.arrayBuffer();
+    await withTimeout(ctx.decodeAudioData(buf.slice(0)), 60_000, "AudioContext.decodeAudioData()");
+  } catch (err) {
+    throw new Error(`MP3 오디오를 해석하지 못했습니다. 다른 MP3 파일로 시도해 주세요. (${err instanceof Error ? err.message : String(err)})`);
+  } finally {
+    ctx.close?.();
+  }
+}
+
+async function getShoutModuleUrl() {
+  if (!shoutModuleUrlPromise) {
+    shoutModuleUrlPromise = fetch(SHOUT_WASM_JS_URL, { cache: "force-cache", credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Whisper WASM JS 로드 실패 (${res.status})`);
+        const blob = await res.blob();
+        return URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
+      })
+      .catch((err) => {
+        shoutModuleUrlPromise = null;
+        throw err;
+      });
+  }
+  return shoutModuleUrlPromise;
+}
+
+async function resetTranscriber() {
+  const current = cachedTranscriber;
+  cachedTranscriber = null;
+  try { await current?.cancel?.(); } catch {}
+  try { current?.destroy?.(); } catch {}
 }
 
 export async function transcribeMp3(
@@ -82,10 +142,14 @@ export async function transcribeMp3(
   const model = await loadModelBlob(cb);
   console.log("[whisper] model ready:", model.size, "bytes");
 
-  console.log("[whisper] importing transcriber+shout…");
+  console.log("[whisper] validating audio decode…");
+  await assertAudioDecodable(file);
+
+  console.log("[whisper] importing transcriber + local shout wasm module…");
+  const shoutModuleUrl = await getShoutModuleUrl();
   const [{ FileTranscriber }, shoutMod] = await Promise.all([
     import("@transcribe/transcriber"),
-    import("@transcribe/shout"),
+    import(/* @vite-ignore */ shoutModuleUrl),
   ]);
   const createModule = (shoutMod as any).default;
   if (typeof createModule !== "function") {
@@ -98,12 +162,28 @@ export async function transcribeMp3(
       cachedTranscriber = new FileTranscriber({
         createModule,
         model: model as any,
+        print: (message: string) => console.log("[whisper:stdout]", message),
+        printErr: (message: string) => console.warn("[whisper:stderr]", message),
+        onAbort: () => console.warn("[whisper] wasm aborted"),
+        onExit: (status: unknown) => console.warn("[whisper] wasm exited", status),
+        onComplete: (result: unknown) => console.log("[whisper] complete callback", result),
+        onSegment: (segment: unknown) => {
+          console.log("[whisper] segment", segment);
+          const seg = (segment as any)?.segment;
+          if (seg?.text) {
+            cb.onSegment?.({
+              startMs: Math.max(0, Math.round(seg.offsets?.from ?? 0)),
+              endMs: Math.max(0, Math.round(seg.offsets?.to ?? 0)),
+              text: String(seg.text).trim(),
+            });
+          }
+        },
         onProgress: (p: number) => {
           console.log("[whisper] progress", p);
           cb.onProgress?.(p);
         },
       });
-      await withTimeout(cachedTranscriber.init(), 120_000, "FileTranscriber.init()");
+      await withTimeout(cachedTranscriber.init(), INIT_TIMEOUT_MS, "FileTranscriber.init()");
       console.log("[whisper] init done");
     } else {
       cachedTranscriber.onProgress = (p: number) => {
@@ -116,10 +196,11 @@ export async function transcribeMp3(
     const result: any = await withTimeout(
       cachedTranscriber.transcribe(file, {
         lang: "ko",
+        threads: Math.max(1, Math.min(2, navigator.hardwareConcurrency || 2)),
         token_timestamps: true,
         suppress_non_speech: true,
       }),
-      10 * 60_000,
+      TRANSCRIBE_TIMEOUT_MS,
       "FileTranscriber.transcribe()",
     );
     console.log("[whisper] transcribe done", result);
@@ -135,7 +216,7 @@ export async function transcribeMp3(
     return segments;
   } catch (err) {
     // Drop the cached instance so the next attempt gets a fresh worker.
-    cachedTranscriber = null;
+    await resetTranscriber();
     console.error("[whisper] failed", err);
     throw err;
   }
@@ -143,11 +224,12 @@ export async function transcribeMp3(
 
 // ─────────────────────────────────────────────────────────────
 // Offline verification (published site only — SW is disabled in preview):
-//   1) Load app once online. Convert one MP4 → MP3 to precache ffmpeg-core.
-//   2) Open lyrics editor → SYLT → "음성인식으로 자동추출" once online to
-//      cache the Whisper model (~57MB) under the "whisper-models" cache.
-//   3) DevTools → Application → Service Workers: /service-worker.js activated.
-//   4) DevTools → Network → Offline, reload the app.
-//   5) MP4→MP3 conversion should still work (ffmpeg-core cache hit).
-//   6) SYLT auto-extract should still work (whisper-models cache hit).
+//   1) Load app once online and wait for engine warm-up logs.
+//   2) Convert one MP4 → MP3 to verify ffmpeg-core cache.
+//   3) Open lyrics editor → SYLT → "음성인식으로 자동추출" once online to
+//      verify the Whisper model (~57MB) under "audiofly-media-engines-v2".
+//   4) DevTools → Application → Service Workers: /sw.js activated.
+//   5) DevTools → Network → Offline, reload the app.
+//   6) MP4→MP3 conversion should still work (ffmpeg-core cache hit).
+//   7) SYLT auto-extract should still work (model + shout.wasm.js cache hit).
 // ─────────────────────────────────────────────────────────────

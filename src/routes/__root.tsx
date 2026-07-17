@@ -129,7 +129,7 @@ function RootComponent() {
   // Lovable preview, iframe embeds, and `?sw=off`.
   // Verify on the published site:
   //   1) Load the app fully online.
-  //   2) DevTools → Application → Service Workers: `/service-worker.js` = activated.
+  //   2) DevTools → Application → Service Workers: `/sw.js` = activated.
   //   3) Toggle Network → Offline and reload — the app shell should still load.
   useEffect(() => {
     registerAppSW();
