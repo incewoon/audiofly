@@ -10,6 +10,14 @@ const CONVERT_TIMEOUT_MS = 5 * 60_000;
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
 
+const withTimeout = <T,>(p: Promise<T>, ms: number, tag: string) =>
+  Promise.race<T>([
+    p,
+    new Promise<T>((_, rej) =>
+      setTimeout(() => rej(new Error(`${tag} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+
 export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpegInstance) return ffmpegInstance;
   if (loadPromise) return loadPromise;
@@ -24,14 +32,6 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
 
   // Fail fast instead of hanging on "변환엔진 로드중" forever if the CDN/proxy
   // is unreachable (e.g. offline before the core wasm was ever cached).
-  const withTimeout = <T,>(p: Promise<T>, ms: number, tag: string) =>
-    Promise.race<T>([
-      p,
-      new Promise<T>((_, rej) =>
-        setTimeout(() => rej(new Error(`${tag} timed out after ${ms}ms`)), ms),
-      ),
-    ]);
-
   const assertReachable = async (url: string) => {
     const res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
     if (!res.ok) throw new Error(`${url} 로드 실패 (${res.status})`);
