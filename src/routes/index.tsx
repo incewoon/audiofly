@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { ConverterForm } from "@/components/ConverterForm";
 import { Toaster } from "@/components/ui/sonner";
-import { registerAppSW } from "@/lib/sw-register";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,10 +15,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  useEffect(() => {
-    registerAppSW();
-  }, []);
-
   return (
     <main className="min-h-screen bg-gradient-to-b from-background to-muted flex items-start sm:items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
