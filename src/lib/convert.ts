@@ -30,34 +30,16 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
   };
   ff.on("log", ({ message }) => log(message));
 
-  // Fetch each engine file exactly once. A previous version fetched every URL
-  // twice (assertReachable + toCachedBlobURL) which wasted a 30MB WASM download
-  // on mobile and could push us past the load timeout.
-  const toCachedBlobURL = async (url: string, type: string) => {
-    let res: Response;
-    try {
-      res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
-    } catch (err) {
-      throw new Error(`${url} 로드 실패: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    if (!res.ok) throw new Error(`${url} 로드 실패 (${res.status})`);
-    const blob = await res.blob();
-    return URL.createObjectURL(new Blob([blob], { type }));
-  };
-
+  // Pass real same-origin URLs to ff.load() so the multithreaded/worker
+  // bootstrap inside ffmpeg-core can resolve `import.meta.url` and spawn
+  // pthread workers correctly. Blob-URL wrapping breaks that pathway.
+  // The service worker's CacheFirst rule already handles offline caching for
+  // /ffmpeg/ffmpeg-core.js and the hashed ffmpeg-core.wasm asset.
   loadPromise = Promise.resolve()
     .then(async () => {
-      log("fetching ffmpeg core files");
-      // Vite dev/prod can reject direct dynamic imports from /public. ffmpeg.wasm
-      // accepts Blob URLs, so we fetch the cached engine files first and import
-      // those object URLs instead. This also keeps the path SW-cache friendly.
-      const [coreURL, wasmURL] = await Promise.all([
-        toCachedBlobURL(CORE_JS_URL, "text/javascript"),
-        toCachedBlobURL(CORE_WASM_URL, "application/wasm"),
-      ]);
-      log("loading ffmpeg core");
+      log("loading ffmpeg core from " + CORE_JS_URL);
       await withTimeout(
-        ff.load({ coreURL, wasmURL }),
+        ff.load({ coreURL: CORE_JS_URL, wasmURL: CORE_WASM_URL }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
       );
