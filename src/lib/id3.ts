@@ -1,3 +1,5 @@
+// src/lib/id3.ts
+
 import { ID3Writer } from "browser-id3-writer";
 
 export interface Id3Cover {
