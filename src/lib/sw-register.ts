@@ -3,16 +3,10 @@
 // Guarded service-worker registration. Only registers in a real published
 // production origin — never in Lovable preview, iframe embeds, or dev.
 
+import { ENGINE_CACHE_NAME, ENGINE_CACHE_URLS } from "./engine-assets";
+
 const APP_SW_PATH = "/sw.js";
 const LEGACY_SW_PATHS = ["/service-worker.js"];
-
-const ENGINE_CACHE_NAME = "audiofly-media-engines-v2";
-const ENGINE_CACHE_URLS = [
-  "/ffmpeg/ffmpeg-core.js",
-  "/whisper/shout.wasm.js",
-  "/__l5e/assets-v1/1e85a9aa-a971-4415-8081-e3c4f925c47d/ffmpeg-core.wasm",
-  "/__l5e/assets-v1/a587ef4c-520e-4b8b-8a89-37adfbfed4f0/ggml-base-q5_1.bin",
-];
 
 
 function isRefusedContext(): boolean {

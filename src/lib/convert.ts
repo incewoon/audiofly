@@ -30,17 +30,16 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
   };
   ff.on("log", ({ message }) => log(message));
 
-  // Fail fast instead of hanging on "변환엔진 로드중" forever if the CDN/proxy
-  // is unreachable (e.g. offline before the core wasm was ever cached).
-  const assertReachable = async (url: string) => {
-    const res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
-    if (!res.ok) throw new Error(`${url} 로드 실패 (${res.status})`);
-    // Consume a tiny slice so browser/SW cache has a concrete response to store.
-    await res.clone().blob();
-  };
-
+  // Fetch each engine file exactly once. A previous version fetched every URL
+  // twice (assertReachable + toCachedBlobURL) which wasted a 30MB WASM download
+  // on mobile and could push us past the load timeout.
   const toCachedBlobURL = async (url: string, type: string) => {
-    const res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
+    let res: Response;
+    try {
+      res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
+    } catch (err) {
+      throw new Error(`${url} 로드 실패: ${err instanceof Error ? err.message : String(err)}`);
+    }
     if (!res.ok) throw new Error(`${url} 로드 실패 (${res.status})`);
     const blob = await res.blob();
     return URL.createObjectURL(new Blob([blob], { type }));
@@ -48,9 +47,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
 
   loadPromise = Promise.resolve()
     .then(async () => {
-      log("checking ffmpeg core files");
-      await Promise.all([assertReachable(CORE_JS_URL), assertReachable(CORE_WASM_URL)]);
-      log("loading ffmpeg core");
+      log("fetching ffmpeg core files");
       // Vite dev/prod can reject direct dynamic imports from /public. ffmpeg.wasm
       // accepts Blob URLs, so we fetch the cached engine files first and import
       // those object URLs instead. This also keeps the path SW-cache friendly.
@@ -58,6 +55,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
         toCachedBlobURL(CORE_JS_URL, "text/javascript"),
         toCachedBlobURL(CORE_WASM_URL, "application/wasm"),
       ]);
+      log("loading ffmpeg core");
       await withTimeout(
         ff.load({ coreURL, wasmURL }),
         LOAD_TIMEOUT_MS,
