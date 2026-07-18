@@ -15,15 +15,20 @@ export interface TranscribeCallbacks {
   onSegment?: (seg: WhisperSegment) => void;
 }
 
-// Default: quantized base multilingual (~57MB), hosted as a same-origin
-// AudioFly asset so it can be cached for offline use without third-party fetches.
-const MODEL_URL = "/__l5e/assets-v1/a587ef4c-520e-4b8b-8a89-37adfbfed4f0/ggml-base-q5_1.bin";
+// Asset URLs come from src/lib/engine-assets.ts (single source of truth backed by
+// the Lovable asset pointer JSON). Never hardcode `/__l5e/...` here — it drifts.
+import {
+  WHISPER_MODEL_URL,
+  SHOUT_WASM_JS_URL,
+  ENGINE_CACHE_NAME,
+} from "../engine-assets";
+
+const MODEL_URL = WHISPER_MODEL_URL;
 // Cache Storage requires an http(s) or same-origin URL as the Request key —
 // custom schemes like "whisper-model:" throw
 // `Failed to execute 'put' on 'Cache': Request scheme 'whisper-model' is unsupported`.
 const MODEL_CACHE_URL = MODEL_URL;
-const SHOUT_WASM_JS_URL = "/whisper/shout.wasm.js";
-const MODEL_CACHE_NAME = "audiofly-media-engines-v2";
+const MODEL_CACHE_NAME = ENGINE_CACHE_NAME;
 const INIT_TIMEOUT_MS = 120_000;
 const TRANSCRIBE_TIMEOUT_MS = 10 * 60_000;
 

@@ -41,13 +41,17 @@ export default defineConfig({
       manifest: false,
       includeAssets: [
         "manifest.json",
+        "offline.html",
         "icons/*.png",
         "ffmpeg/ffmpeg-core.js",
         "whisper/shout.wasm.js",
       ],
 
       workbox: {
-        navigateFallback: "/",
+        // SSR `/` cannot be precached, so offline navigations fall back to a
+        // fully static shell. Already-open tabs with an active SW keep working
+        // from their in-memory app bundle + cached engines.
+        navigateFallback: "/offline.html",
         navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//],
         cleanupOutdatedCaches: true,
         skipWaiting: true,

@@ -1,0 +1,7 @@
+# Cross-origin isolation is required for Whisper.cpp (SharedArrayBuffer / pthread).
+# src/server.ts already sets these on SSR responses, but this file guarantees the
+# same headers on any statically-served response (offline.html, precached assets,
+# Cloudflare Pages fallback paths) so `crossOriginIsolated === true` everywhere.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
