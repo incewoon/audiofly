@@ -1,11 +1,10 @@
 // src/lib/convert.ts
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { CORE_JS_URL, CORE_WASM_URL } from "./engine-assets";
-import workerURL from "@ffmpeg/ffmpeg/worker?url";
 
-const LOAD_TIMEOUT_MS = 60_000;
+const LOAD_TIMEOUT_MS = 90_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
 
 let ffmpegInstance: FFmpeg | null = null;
@@ -26,27 +25,25 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
   const ff = new FFmpeg();
   const log = (msg: string) => {
     onLog?.(msg);
-    // Surface engine progress in DevTools for offline/hang diagnosis.
     console.log("[ffmpeg]", msg);
   };
   ff.on("log", ({ message }) => log(message));
 
-  // Pass real same-origin URLs to ff.load() so the multithreaded/worker
-  // bootstrap inside ffmpeg-core can resolve `import.meta.url` and spawn
-  // pthread workers correctly. Blob-URL wrapping breaks that pathway.
-  // The service worker's CacheFirst rule already handles offline caching for
-  // /ffmpeg/ffmpeg-core.js and the hashed ffmpeg-core.wasm asset.
   loadPromise = Promise.resolve()
     .then(async () => {
       log("loading ffmpeg core from " + CORE_JS_URL);
+
+      // 싱글스레드 모드로 강제 (워커 스폰을 막음)
+      // toBlobURL을 사용하면 COEP 문제에서 자유로워짐
+      const coreURL = await toBlobURL(CORE_JS_URL, "text/javascript");
+      const wasmURL = await toBlobURL(CORE_WASM_URL, "application/wasm");
+
       await withTimeout(
         ff.load({
-          coreURL: CORE_JS_URL,
-          wasmURL: CORE_WASM_URL,
-          // classWorkerURL을 제거하여 멀티스레드 워커 스폰을 막고
-          // 싱글스레드 모드로 안정적으로 동작하게 함
+          coreURL,
+          wasmURL,
         }),
-        90000,   // timeout을 90초로 증가
+        LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
       );
     })
@@ -56,7 +53,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       return ff;
     })
     .catch((err) => {
-      loadPromise = null; // allow retry
+      loadPromise = null;
       try { ff.terminate(); } catch {}
       console.error("[ffmpeg] load failed", err);
       throw new Error(
@@ -101,7 +98,6 @@ export async function convertMp4ToMp3({
       throw new Error(`ffmpeg 변환 실패 (exit ${exitCode})`);
     }
     const data = await ff.readFile(outputName);
-    // clean up virtual FS
     try { await ff.deleteFile(inputName); } catch {}
     try { await ff.deleteFile(outputName); } catch {}
     return data as Uint8Array;
