@@ -17,11 +17,13 @@ while (Date.now() - startTime < timeout) {
     const full = path.resolve(process.cwd(), dir);
     if (existsSync(full)) {
       // 최소한 index.html이나 assets 폴더가 있는 폴더를 우선 선택
-      if (
-        existsSync(path.join(full, "index.html")) ||
-        existsSync(path.join(full, "assets")) ||
-        existsSync(path.join(full, "offline.html"))
-      ) {
+    if (
+      existsSync(path.join(full, "index.html")) ||
+      existsSync(path.join(full, "assets")) ||
+      existsSync(path.join(full, "offline.html")) ||
+      existsSync(path.join(full, "ffmpeg")) ||
+      existsSync(path.join(full, "manifest.json"))
+    ) {
         PUBLIC_DIR = dir;
         break;
       }
