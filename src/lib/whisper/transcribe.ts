@@ -192,7 +192,7 @@ export async function transcribeMp3(
     const result: any = await withTimeout(
       cachedTranscriber.transcribe(file, {
         lang: "ko",
-        threads: Math.max(1, Math.min(2, navigator.hardwareConcurrency || 2)),
+        threads: 1,
         token_timestamps: true,
         suppress_non_speech: true,
       }),
