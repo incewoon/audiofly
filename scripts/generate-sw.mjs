@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 // Lovable/nitro 최종 산출물 우선, 로컬 dist는 후순위
-const TARGET_DIRS = [".output/public", "dist"];
+const TARGET_DIRS = ["dist/client", ".output/public", "dist"];
 let PUBLIC_DIR = "";
 
 const startTime = Date.now();
