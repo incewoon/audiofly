@@ -80,7 +80,8 @@ export default defineConfig({
           {
             urlPattern: ({ url }) =>
               url.origin === globalThis.location.origin &&
-              /^\\/__l5e\\/assets-v1\\//.test(url.pathname) &&
+              // /^\\/__l5e\\/assets-v1\\//.test(url.pathname) &&
+              /^\/__l5e\/assets-v1\//.test(url.pathname) &&
               /(ffmpeg-core\\.wasm|ggml-base-q5_1\\.bin)$/.test(url.pathname),
             handler: "CacheFirst",
             options: {
