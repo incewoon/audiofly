@@ -2,7 +2,11 @@
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
-import { CORE_JS_URL, CORE_WASM_URL } from "./engine-assets";
+import { CORE_WASM_URL } from "./engine-assets";
+
+// 싱글스레드 코어를 직접 사용 (멀티스레드 워커 문제 완전 제거)
+import coreURL from "@ffmpeg/core?url";
+import wasmURL from "@ffmpeg/core/wasm?url";
 
 const LOAD_TIMEOUT_MS = 90_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
@@ -31,24 +35,23 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
 
   loadPromise = Promise.resolve()
     .then(async () => {
-      log("loading ffmpeg core from " + CORE_JS_URL);
+      log("loading single-thread ffmpeg core...");
 
-      // 싱글스레드 모드로 강제 (워커 스폰을 막음)
-      // toBlobURL을 사용하면 COEP 문제에서 자유로워짐
-      const coreURL = await toBlobURL(CORE_JS_URL, "text/javascript");
-      const wasmURL = await toBlobURL(CORE_WASM_URL, "application/wasm");
+      // 싱글스레드 코어 + toBlobURL 조합으로 워커 문제 완전 회피
+      const coreBlobURL = await toBlobURL(coreURL, "text/javascript");
+      const wasmBlobURL = await toBlobURL(wasmURL, "application/wasm");
 
       await withTimeout(
         ff.load({
-          coreURL,
-          wasmURL,
+          coreURL: coreBlobURL,
+          wasmURL: wasmBlobURL,
         }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
       );
     })
     .then(() => {
-      log("ffmpeg core loaded");
+      log("ffmpeg core loaded (single-thread)");
       ffmpegInstance = ff;
       return ff;
     })
@@ -57,7 +60,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       try { ff.terminate(); } catch {}
       console.error("[ffmpeg] load failed", err);
       throw new Error(
-        `변환 엔진 파일을 불러오지 못했습니다. 온라인에서 앱을 한 번 완전히 실행해 캐시한 뒤 다시 시도해 주세요. (${err instanceof Error ? err.message : String(err)})`,
+        `변환 엔진 파일을 불러오지 못했습니다. (${err instanceof Error ? err.message : String(err)})`,
       );
     });
 
@@ -87,13 +90,17 @@ export async function convertMp4ToMp3({
 
   try {
     await ff.writeFile(inputName, await fetchFile(file));
-    const exitCode = await withTimeout(ff.exec([
-      "-i", inputName,
-      "-vn",
-      "-codec:a", "libmp3lame",
-      "-q:a", "2",
-      outputName,
-    ], CONVERT_TIMEOUT_MS), CONVERT_TIMEOUT_MS + 5_000, "ffmpeg.exec()");
+    const exitCode = await withTimeout(
+      ff.exec([
+        "-i", inputName,
+        "-vn",
+        "-codec:a", "libmp3lame",
+        "-q:a", "2",
+        outputName,
+      ], CONVERT_TIMEOUT_MS),
+      CONVERT_TIMEOUT_MS + 5_000,
+      "ffmpeg.exec()",
+    );
     if (typeof exitCode === "number" && exitCode !== 0) {
       throw new Error(`ffmpeg 변환 실패 (exit ${exitCode})`);
     }
