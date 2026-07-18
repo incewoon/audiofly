@@ -48,32 +48,24 @@ export default defineConfig({
       ],
 
       workbox: {
-        // SSR `/` cannot be precached, so offline navigations fall back to a
-        // fully static shell. Already-open tabs with an active SW keep working
-        // from their in-memory app bundle + cached engines.
+        globDirectory: "dist/client",   // client 빌드 폴더로 명시
         navigateFallback: "/offline.html",
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//],
+        navigateFallbackDenylist: [/^\\/~oauth/, /^\\/api\\//],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
-        // Include Vite chunks, public app assets, wasm-bearing modules, and dynamic imports.
         globPatterns: [
           "**/*.{js,mjs,cjs,css,html,svg,png,ico,webmanifest,json,wasm}",
         ],
-        // Exclude nitro (Cloudflare) server bundle output — those files are not
-        // fetchable from the browser, so including them makes SW install fail
-        // with bad-precaching-response and disables offline entirely.
         globIgnores: [
           "server/**",
           "**/server/**",
           "_worker.js",
           "**/_worker.js",
         ],
-        // Engine files are large: ffmpeg-core.wasm ~31MB, Whisper model ~57MB.
         maximumFileSizeToCacheInBytes: 100 * 1024 * 1024,
         runtimeCaching: [
           {
-            // Local engine JS files used by ffmpeg and whisper pthread workers.
             urlPattern: ({ url }) =>
               url.origin === globalThis.location.origin &&
               (url.pathname === "/ffmpeg/ffmpeg-core.js" || url.pathname === "/whisper/shout.wasm.js"),
@@ -85,28 +77,14 @@ export default defineConfig({
             },
           },
           {
-            // Externalized ffmpeg core wasm and bundled Whisper GGML model.
             urlPattern: ({ url }) =>
               url.origin === globalThis.location.origin &&
-              /^\/__l5e\/assets-v1\//.test(url.pathname) &&
-              /(ffmpeg-core\.wasm|ggml-base-q5_1\.bin)$/.test(url.pathname),
+              /^\\/__l5e\\/assets-v1\\//.test(url.pathname) &&
+              /(ffmpeg-core\\.wasm|ggml-base-q5_1\\.bin)$/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "audiofly-media-engines-v2",
               expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-              rangeRequests: true,
-            },
-          },
-          {
-            // Kept only as a safety net for old cached builds that used the
-            // Hugging Face model URL before AudioFly bundled it as a same-origin asset.
-            urlPattern: ({ url }) =>
-              url.origin === "https://huggingface.co" && /\/ggml-.*\.bin/.test(url.pathname),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "audiofly-media-engines-v2",
-              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
               rangeRequests: true,
             },
