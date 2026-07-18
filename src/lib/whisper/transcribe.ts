@@ -87,7 +87,7 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
 }
 
 let cachedTranscriber: any = null;
-let shoutModuleUrlPromise: Promise<string> | null = null;
+
 
 function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
   return Promise.race<T>([
