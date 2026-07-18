@@ -1,3 +1,5 @@
+// src/lib/sw-register.ts
+
 // Guarded service-worker registration. Only registers in a real published
 // production origin — never in Lovable preview, iframe embeds, or dev.
 
