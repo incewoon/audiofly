@@ -43,9 +43,10 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
         ff.load({
           coreURL: CORE_JS_URL,
           wasmURL: CORE_WASM_URL,
-          classWorkerURL: workerURL,   // ← worker 명시 추가
+          // classWorkerURL을 제거하여 멀티스레드 워커 스폰을 막고
+          // 싱글스레드 모드로 안정적으로 동작하게 함
         }),
-        LOAD_TIMEOUT_MS,
+        90000,   // timeout을 90초로 증가
         "ffmpeg.load()",
       );
     })
