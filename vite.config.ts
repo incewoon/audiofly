@@ -50,7 +50,8 @@ export default defineConfig({
       workbox: {
         globDirectory: "dist/client",   // client 빌드 폴더로 명시
         navigateFallback: "/offline.html",
-        navigateFallbackDenylist: [/^\\/~oauth/, /^\\/api\\//],
+        //navigateFallbackDenylist: [/^\\/~oauth/, /^\\/api\\//],
+        navigateFallbackDenylist: [/^\/~oauth/, /^\/api/],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
