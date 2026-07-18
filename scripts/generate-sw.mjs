@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 // 1. 환경에 따른 최종 출력 폴더 후보군 (배포 서버는 dist/client, 로컬은 .output/public)
-const TARGET_DIRS = ["dist/client", ".output/public"];
+const TARGET_DIRS = ["dist", ".output/public"];
 let PUBLIC_DIR = "";
 
 // 2. 두 폴더 중 하나가 생성될 때까지 최대 15초간 대기 (타이밍 이슈 해결)
