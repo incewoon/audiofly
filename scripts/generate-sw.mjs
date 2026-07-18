@@ -1,26 +1,46 @@
 // scripts/generate-sw.mjs
-// nitro의 `.output/public`이 완성된 뒤에 실행되어야 함 (package.json의 postbuild 훅으로 연결).
-// VitePWA 플러그인이 Vite 빌드 시점(dist/)과 nitro 최종 배포 폴더(.output/public/)의
-// 불일치로 계속 잘못된 경로를 precache에 넣던 문제를 근본적으로 없애기 위해,
-// 최종 폴더가 확정된 뒤 직접 workbox-build를 호출한다.
 import { generateSW } from "workbox-build";
 import { existsSync } from "node:fs";
+import path from "node:path";
 
-const PUBLIC_DIR = ".output/public";
+// 1. 환경에 따른 최종 출력 폴더 후보군 (배포 서버는 dist/client, 로컬은 .output/public)
+const TARGET_DIRS = ["dist/client", ".output/public"];
+let PUBLIC_DIR = "";
 
-if (!existsSync(PUBLIC_DIR)) {
-  console.error(`[generate-sw] ${PUBLIC_DIR} 가 없습니다. nitro 빌드가 먼저 끝나야 합니다.`);
+// 2. 두 폴더 중 하나가 생성될 때까지 최대 15초간 대기 (타이밍 이슈 해결)
+const startTime = Date.now();
+const timeout = 15000;
+
+console.log("[generate-sw] 최종 빌드 폴더를 탐색 중...");
+
+while (Date.now() - startTime < timeout) {
+  for (const dir of TARGET_DIRS) {
+    if (existsSync(path.resolve(process.cwd(), dir))) {
+      PUBLIC_DIR = dir;
+      break;
+    }
+  }
+  if (PUBLIC_DIR) break;
+
+  // 0.5초 쉼 (CPU 과부하 방지)
+  const stop = Date.now() + 500;
+  while (Date.now() < stop) {}
+}
+
+if (!PUBLIC_DIR) {
+  console.error(`[generate-sw] 에러: 빌드 폴더(${TARGET_DIRS.join(" 또는 ")})를 찾을 수 없습니다. 빌드가 실패했거나 진행 중입니다.`);
   process.exit(1);
 }
 
+console.log(`[generate-sw] 대기 완료! 대상 폴더 확정: "${PUBLIC_DIR}"`);
+
+// 3. 서비스 워커 빌드 프로세스 진행
 const { count, size, warnings } = await generateSW({
   swDest: `${PUBLIC_DIR}/sw.js`,
   globDirectory: PUBLIC_DIR,
   globPatterns: [
     "**/*.{js,mjs,cjs,css,html,svg,png,ico,webmanifest,json,wasm}",
   ],
-  // sw.js 자기 자신과 workbox 런타임 청크는 스캔 시점에 아직 안 만들어졌거나
-  // 자기참조가 되면 안 되므로 제외.
   globIgnores: ["sw.js", "workbox-*.js"],
   navigateFallback: "/offline.html",
   navigateFallbackDenylist: [/^\/_oauth/, /^\/api/],
