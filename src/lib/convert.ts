@@ -3,6 +3,7 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 import { CORE_JS_URL, CORE_WASM_URL } from "./engine-assets";
+import workerURL from "@ffmpeg/ffmpeg/worker?url";
 
 const LOAD_TIMEOUT_MS = 60_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
@@ -39,7 +40,11 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
     .then(async () => {
       log("loading ffmpeg core from " + CORE_JS_URL);
       await withTimeout(
-        ff.load({ coreURL: CORE_JS_URL, wasmURL: CORE_WASM_URL }),
+        ff.load({
+          coreURL: CORE_JS_URL,
+          wasmURL: CORE_WASM_URL,
+          classWorkerURL: workerURL,   // ← worker 명시 추가
+        }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
       );
