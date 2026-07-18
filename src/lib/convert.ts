@@ -2,10 +2,8 @@
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
+import { CORE_JS_URL, CORE_WASM_URL } from "./engine-assets";
 
-// Local (public/ffmpeg/ffmpeg-core.js) + externalized Lovable big-asset wasm.
-const CORE_JS_URL = "/ffmpeg/ffmpeg-core.js";
-const CORE_WASM_URL = "/__l5e/assets-v1/1e85a9aa-a971-4415-8081-e3c4f925c47d/ffmpeg-core.wasm";
 const LOAD_TIMEOUT_MS = 60_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
 
