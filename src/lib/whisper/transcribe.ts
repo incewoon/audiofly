@@ -112,21 +112,11 @@ async function assertAudioDecodable(file: File) {
   }
 }
 
-async function getShoutModuleUrl() {
-  if (!shoutModuleUrlPromise) {
-    shoutModuleUrlPromise = fetch(SHOUT_WASM_JS_URL, { cache: "force-cache", credentials: "same-origin" })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Whisper WASM JS 로드 실패 (${res.status})`);
-        const blob = await res.blob();
-        return URL.createObjectURL(new Blob([blob], { type: "text/javascript" }));
-      })
-      .catch((err) => {
-        shoutModuleUrlPromise = null;
-        throw err;
-      });
-  }
-  return shoutModuleUrlPromise;
-}
+// Do NOT wrap the shout module in a blob: URL. Its default export creates a
+// pthread WASM instance that internally does `new URL(import.meta.url)` to
+// spawn workers, which throws "Failed to construct 'URL': Invalid URL" when
+// the module was loaded from a blob: URL. Import the real same-origin path
+// directly; the SW's CacheFirst rule already caches it for offline use.
 
 async function resetTranscriber() {
   const current = cachedTranscriber;
