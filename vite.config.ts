@@ -60,6 +60,15 @@ export default defineConfig({
         globPatterns: [
           "**/*.{js,mjs,cjs,css,html,svg,png,ico,webmanifest,json,wasm}",
         ],
+        // Exclude nitro (Cloudflare) server bundle output — those files are not
+        // fetchable from the browser, so including them makes SW install fail
+        // with bad-precaching-response and disables offline entirely.
+        globIgnores: [
+          "server/**",
+          "**/server/**",
+          "_worker.js",
+          "**/_worker.js",
+        ],
         // Engine files are large: ffmpeg-core.wasm ~31MB, Whisper model ~57MB.
         maximumFileSizeToCacheInBytes: 100 * 1024 * 1024,
         runtimeCaching: [
