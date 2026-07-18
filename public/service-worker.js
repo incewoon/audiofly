@@ -1,3 +1,4 @@
+// public/service-worker.js
 // One-release cleanup worker for old AudioFly builds that registered
 // /service-worker.js. The active app worker is now /sw.js.
 function isAudioFlyWorkboxCache(name) {
