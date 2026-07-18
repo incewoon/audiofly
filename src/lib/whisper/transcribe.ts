@@ -143,10 +143,9 @@ export async function transcribeMp3(
   await assertAudioDecodable(file);
 
   console.log("[whisper] importing transcriber + local shout wasm module…");
-  const shoutModuleUrl = await getShoutModuleUrl();
   const [{ FileTranscriber }, shoutMod] = await Promise.all([
     import("@transcribe/transcriber"),
-    import(/* @vite-ignore */ shoutModuleUrl),
+    import(/* @vite-ignore */ SHOUT_WASM_JS_URL),
   ]);
   const createModule = (shoutMod as any).default;
   if (typeof createModule !== "function") {
