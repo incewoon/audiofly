@@ -1,3 +1,5 @@
+// src/lib/whisper/transcribe.ts
+
 // Client-only Whisper.cpp WASM wrapper.
 // Loaded via dynamic import so it never lands in the server bundle.
 
