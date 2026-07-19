@@ -1,19 +1,19 @@
-// src/lib/convert.ts
-
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
-
-
-// 싱글스레드 코어를 직접 사용 (멀티스레드 워커 문제 완전 제거)
+import { fetchFile } from "@ffmpeg/util";
+import createFFmpegCore from "@ffmpeg/core";
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
-import { CORE_WASM_URL, FFMPEG_WORKER_URL } from "./engine-assets";
+
+// ⚠️ 확인 필요: createFFmpegCore()가 받는 옵션 키 이름과 반환되는 Module의
+// 메서드 이름(FS.writeFile / FS.readFile / exec / setLogger / setProgress)이
+// 실제 설치된 버전과 정확히 일치하는지, 다음 파일을 열어서 대조해 주세요:
+//   node_modules/@ffmpeg/core/dist/esm/types.d.ts
+// (버전마다 옵션 키가 약간 다를 수 있습니다. 아래는 @ffmpeg/core 0.12.x 기준
+// 가장 흔한 시그니처입니다.)
 
 const LOAD_TIMEOUT_MS = 90_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
 
-let ffmpegInstance: FFmpeg | null = null;
-let loadPromise: Promise<FFmpeg> | null = null;
+let corePromise: ReturnType<typeof createFFmpegCore> | null = null;
 
 const withTimeout = <T,>(p: Promise<T>, ms: number, tag: string) =>
   Promise.race<T>([
@@ -23,62 +23,31 @@ const withTimeout = <T,>(p: Promise<T>, ms: number, tag: string) =>
     ),
   ]);
 
-export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
-  if (ffmpegInstance) return ffmpegInstance;
-  if (loadPromise) return loadPromise;
+async function getCore(onLog?: (msg: string) => void) {
+  if (corePromise) return corePromise;
 
-  const ff = new FFmpeg();
-  const log = (msg: string) => {
-    onLog?.(msg);
-    console.log("[ffmpeg]", msg);
-  };
-  ff.on("log", ({ message }) => log(message));
-
-  loadPromise = Promise.resolve()
-    .then(async () => {
-      log("loading single-thread ffmpeg core...");
-
-      // 싱글스레드 코어 + toBlobURL 조합으로 워커 문제 완전 회피
-      const coreBlobURL = await toBlobURL(coreURL, "text/javascript");
-      const wasmBlobURL = await toBlobURL(wasmURL, "application/wasm");
-      const classWorkerBlobURL = await toBlobURL(FFMPEG_WORKER_URL, "text/javascript"); // 추가
-      
-      console.log("[ffmpeg] loading worker from blob URL", classWorkerBlobURL); // 추가
-
-      // ── 임시 진단 코드: 원인 확인 후 삭제 ──────────────────────────
-      const diagWorker = new Worker(classWorkerBlobURL, { type: "module" });
-      diagWorker.onmessage = (e) => console.log("[diag] worker responded:", e.data);
-      diagWorker.onerror = (e) => console.error("[diag] worker onerror:", e.message, e.filename, e.lineno);
-      diagWorker.onmessageerror = (e) => console.error("[diag] worker onmessageerror:", e);
-      setTimeout(() => console.log("[diag] 5초 경과 — 위에 onerror/onmessage 로그가 없으면 워커는 살아있지만 응답이 없는 것"), 5000);
-      // ────────────────────────────────────────────────────────────
-
-
-      await withTimeout(
-        ff.load({
-          coreURL: coreBlobURL,
-          wasmURL: wasmBlobURL,
-          classWorkerURL: classWorkerBlobURL,   // 추가
-        }),
-        LOAD_TIMEOUT_MS,
-        "ffmpeg.load()",
-      );
-    })
-    .then(() => {
-      log("ffmpeg core loaded (single-thread)");
-      ffmpegInstance = ff;
-      return ff;
-    })
-    .catch((err) => {
-      loadPromise = null;
-      try { ff.terminate(); } catch {}
-      console.error("[ffmpeg] load failed", err);
-      throw new Error(
-        `변환 엔진 파일을 불러오지 못했습니다. (${err instanceof Error ? err.message : String(err)})`,
-      );
+  corePromise = withTimeout(
+    createFFmpegCore({
+      mainScriptUrlOrBlob: coreURL,
+      wasmBinaryUrl: wasmURL, // 실제 키 이름은 types.d.ts에서 재확인
+    }),
+    LOAD_TIMEOUT_MS,
+    "ffmpeg core load()",
+  ).then((core: any) => {
+    core.setLogger?.(({ message }: { message: string }) => {
+      onLog?.(message);
+      console.log("[ffmpeg]", message);
     });
+    return core;
+  }).catch((err) => {
+    corePromise = null;
+    console.error("[ffmpeg] core load failed", err);
+    throw new Error(
+      `변환 엔진 파일을 불러오지 못했습니다. (${err instanceof Error ? err.message : String(err)})`,
+    );
+  });
 
-  return loadPromise;
+  return corePromise;
 }
 
 export interface ConvertOptions {
@@ -92,37 +61,33 @@ export async function convertMp4ToMp3({
   onProgress,
   onLog,
 }: ConvertOptions): Promise<Uint8Array> {
-  const ff = await getFFmpeg(onLog);
+  const core: any = await getCore(onLog);
 
-  const progressHandler = ({ progress }: { progress: number }) => {
+  core.setProgress?.(({ progress }: { progress: number }) => {
     onProgress?.(Math.max(0, Math.min(1, progress)));
-  };
-  ff.on("progress", progressHandler);
+  });
 
   const inputName = "input.mp4";
   const outputName = "output.mp3";
 
-  try {
-    await ff.writeFile(inputName, await fetchFile(file));
-    const exitCode = await withTimeout(
-      ff.exec([
-        "-i", inputName,
-        "-vn",
-        "-codec:a", "libmp3lame",
-        "-q:a", "2",
-        outputName,
-      ], CONVERT_TIMEOUT_MS),
-      CONVERT_TIMEOUT_MS + 5_000,
-      "ffmpeg.exec()",
-    );
-    if (typeof exitCode === "number" && exitCode !== 0) {
-      throw new Error(`ffmpeg 변환 실패 (exit ${exitCode})`);
-    }
-    const data = await ff.readFile(outputName);
-    try { await ff.deleteFile(inputName); } catch {}
-    try { await ff.deleteFile(outputName); } catch {}
-    return data as Uint8Array;
-  } finally {
-    ff.off("progress", progressHandler);
+  core.FS.writeFile(inputName, await fetchFile(file));
+
+  const exitCode = await withTimeout(
+    core.exec(
+      ["-i", inputName, "-vn", "-codec:a", "libmp3lame", "-q:a", "2", outputName],
+      CONVERT_TIMEOUT_MS,
+    ),
+    CONVERT_TIMEOUT_MS + 5_000,
+    "ffmpeg.exec()",
+  );
+
+  if (typeof exitCode === "number" && exitCode !== 0) {
+    throw new Error(`ffmpeg 변환 실패 (exit ${exitCode})`);
   }
+
+  const data = core.FS.readFile(outputName);
+  try { core.FS.unlink(inputName); } catch {}
+  try { core.FS.unlink(outputName); } catch {}
+
+  return data as Uint8Array;
 }
