@@ -14,7 +14,6 @@ import whisperModel from "../../public/whisper-models/ggml-base-q5_1.bin.asset.j
 
 export const CORE_JS_URL = "/ffmpeg/ffmpeg-core.js";
 export const CORE_WASM_URL = ffmpegCoreWasm.url;
-export const FFMPEG_WORKER_URL = "/ffmpeg/worker.js";   // 추가
 export const WHISPER_MODEL_URL = whisperModel.url;
 export const SHOUT_WASM_JS_URL = "/whisper/shout.wasm.js";
 
@@ -22,7 +21,6 @@ export const ENGINE_CACHE_NAME = "audiofly-media-engines-v2";
 
 export const ENGINE_CACHE_URLS: readonly string[] = [
   CORE_JS_URL,
-  FFMPEG_WORKER_URL,   
   SHOUT_WASM_JS_URL,
   CORE_WASM_URL,
   WHISPER_MODEL_URL,
