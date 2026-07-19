@@ -31,7 +31,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
     onLog?.(msg);
     console.log("[ffmpeg]", msg);
   };
-  ff.on("log", ({ message }) => log(message));
+  ff.on("log", ({ message }: { message: string }) => log(message));
 
   loadPromise = Promise.resolve()
     .then(async () => {
