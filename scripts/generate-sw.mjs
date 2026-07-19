@@ -61,13 +61,35 @@ const { count, size, warnings } = await generateSW({
     "_worker.js",
     "**/wrangler.json",
   ],
-  navigateFallback: "/offline.html",
-  navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//, /^\/server\//],
   cleanupOutdatedCaches: true,
   skipWaiting: true,
   clientsClaim: true,
   maximumFileSizeToCacheInBytes: 100 * 1024 * 1024,
   runtimeCaching: [
+    // Navigation requests: always try the network first so online users get
+    // the real app shell. Only fall back to the precached offline.html when
+    // the network genuinely fails.
+    {
+      urlPattern: ({ request, url }) =>
+        request.mode === "navigate" &&
+        !url.pathname.startsWith("/api") &&
+        !url.pathname.startsWith("/_oauth"),
+      handler: "NetworkOnly",
+      options: {
+        plugins: [
+          {
+            handlerDidError: async () => {
+              const cached = await caches.match("/offline.html");
+              if (cached) return cached;
+              return new Response(
+                "<!doctype html><meta charset='utf-8'><title>Offline</title><p>오프라인 상태입니다.</p>",
+                { status: 503, headers: { "content-type": "text/html; charset=utf-8" } },
+              );
+            },
+          },
+        ],
+      },
+    },
     {
       urlPattern: ({ url }) =>
         url.origin === self.location.origin &&

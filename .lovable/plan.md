@@ -1,79 +1,131 @@
-## 검증 결과 (외부 AI 지적 재확인)
+# AudioFly – 근본 원인 두 가지 수정 계획 (보강본)
 
-실제 코드를 확인한 결과입니다:
+## 배경
 
-| # | 지적 내용 | 검증 결과 |
-|---|---|---|
-| 1 | asset URL 하드코딩이 4곳에 중복 | **사실.** `convert.ts`, `whisper/transcribe.ts`, `sw-register.ts`(2회), `vite.config.ts`(정규식만)에 박혀 있음. 그러나 pointer(`*.asset.json`)의 값과 **현재는 일치**하므로 "지금 이미 어긋나 있다"는 진단은 확인 안 됨. 위험 구조는 맞음 — 재업로드 시 4곳을 놓치면 즉시 깨짐. |
-| 2 | 오프라인에서 앱 shell 로드 실패 | **사실.** `nitro`(Cloudflare) SSR 라우트라 정적 `index.html`이 산출물에 없음. `navigateFallback: "/"`가 매칭할 precache 문서가 없어 오프라인에서 shell을 못 띄움. |
-| 3 | COOP/COEP가 production에 미적용 | **부분적으로 틀림.** `vite.config.ts`의 `coopCoepHeaders()`는 dev/preview 전용이 맞지만, `src/server.ts`의 `withCrossOriginIsolation()`이 이미 모든 production 응답에 COOP/COEP를 붙임. `crossOriginIsolated`는 production에서도 true여야 함 — SYLT 실패의 원인은 이것이 아닐 가능성이 큼(다만 published에서 실제 헤더는 확인 필요). |
-| 4-a | `assertReachable` + `toCachedBlobURL` 이중 fetch | **사실.** 30MB WASM을 두 번 받음. `force-cache`로 브라우저가 두 번째는 캐시 히트하지만 모바일에서 중복 낭비 및 hang 위험. |
-| 4-b | 정규식 백슬래시 유실 | **틀림.** 실제 소스에는 백슬래시 정상. 노트 복사 아티팩트. |
+- **원인 1**: Cloudflare Workers Static Assets는 `_headers`를 지원하지 않음. `@ffmpeg/ffmpeg`의 워커 청크 등 정적 자산에 COOP/COEP가 붙지 않아 `crossOriginIsolated`가 false → `ffmpeg.load()` 타임아웃.
+- **원인 2**: `generate-sw.mjs`가 `navigateFallback: "/offline.html"`을 사용해 온라인 상태에서도 내비게이션이 즉시 offline.html로 대체됨.
 
-## 목표
+`ConverterForm.tsx`의 변환/다운로드/진행률 흐름은 이미 사양대로 구현되어 있음 (progress state, Blob(`audio/mpeg`) + `URL.createObjectURL` + `<a download>`). 검증 4에서 문제가 확인될 때만 수정.
 
-1. asset URL을 **단일 소스**(pointer JSON)에서만 읽도록 리팩터링해 재발 방지.
-2. 오프라인에서 앱 shell이 실제로 로드되도록 정적 fallback 문서 제공.
-3. Published site에서 COOP/COEP 헤더가 붙어 오는지 실측하고, 붙지 않으면 대체 수단 추가.
-4. `convert.ts`의 이중 fetch를 한 번으로 통합.
+## 변경 사항
 
-## 구현 계획
+### 1) `scripts/patch-wrangler.mjs` (신규) — fail-loud
 
-### 1) 자산 URL 단일 소스화
+nitro가 wrangler.json을 JSONC(주석 포함)로 뱉는 케이스가 있으므로 `JSON.parse` 실패를 조용히 넘기지 않고 **빌드를 실패**시켜 상황을 즉시 표면화. 파일이 아예 없는 경우에만 스킵.
 
-- **신규**: `src/lib/engine-assets.ts` 생성. `public/ffmpeg/ffmpeg-core.wasm.asset.json`과 `public/whisper-models/ggml-base-q5_1.bin.asset.json`을 JSON import 해서 `CORE_WASM_URL`, `WHISPER_MODEL_URL`을 export.
-  ```ts
-  import ffmpegPtr from "../../public/ffmpeg/ffmpeg-core.wasm.asset.json";
-  import whisperPtr from "../../public/whisper-models/ggml-base-q5_1.bin.asset.json";
-  export const CORE_WASM_URL = ffmpegPtr.url;
-  export const WHISPER_MODEL_URL = whisperPtr.url;
-  export const CORE_JS_URL = "/ffmpeg/ffmpeg-core.js";
-  export const SHOUT_WASM_JS_URL = "/whisper/shout.wasm.js";
-  export const ENGINE_CACHE_NAME = "audiofly-media-engines-v2";
-  export const ENGINE_CACHE_URLS = [CORE_JS_URL, SHOUT_WASM_JS_URL, CORE_WASM_URL, WHISPER_MODEL_URL];
-  ```
-- **수정**: `src/lib/convert.ts`, `src/lib/whisper/transcribe.ts`, `src/lib/sw-register.ts` — 하드코딩된 URL을 위 모듈에서 import.
-- **수정**: `vite.config.ts`의 runtimeCaching 정규식은 pathname 패턴 매칭(파일명 기반)이라 그대로 두되, 주석에 "asset URL은 pointer JSON이 유일한 진실"임을 명시.
+```js
+import { readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
-### 2) 오프라인 앱 shell fallback
+const target = path.resolve(process.cwd(), ".output/server/wrangler.json");
+if (!existsSync(target)) {
+  console.log("[patch-wrangler] skip: .output/server/wrangler.json not found");
+  process.exit(0);
+}
 
-- **신규**: `public/offline.html` — 완전 정적 HTML, 최소 스타일. 앱 이름/로고 + "오프라인에서는 앱을 새로 로드할 수 없습니다. 이미 열려있는 탭에서는 변환/편집/추출 기능이 정상 동작합니다."
-- **수정**: `vite.config.ts` workbox — `navigateFallback: "/offline.html"`로 변경, `includeAssets`에 `"offline.html"` 추가.
-- 이유: SSR `/` 라우트는 precache에 넣을 수 없으므로 별도 정적 shell로 폴백. 이미 열려 활성화된 SW 컨트롤 상태의 탭은 캐시된 앱 JS/WASM으로 계속 작동함.
+const raw = await readFile(target, "utf8");
+// JSONC 방어: 주석/트레일링 콤마 제거 후 파싱. 파싱 실패는 fail-loud.
+const stripped = raw
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/(^|[^:"'])\/\/.*$/gm, "$1")
+  .replace(/,\s*([}\]])/g, "$1");
 
-### 3) COOP/COEP production 실측 & 안전망
+let cfg;
+try {
+  cfg = JSON.parse(stripped);
+} catch (err) {
+  console.error("[patch-wrangler] FAILED to parse wrangler.json:", err?.message ?? err);
+  console.error("[patch-wrangler] raw content follows ─────");
+  console.error(raw);
+  process.exit(1);
+}
 
-- `src/server.ts`의 `withCrossOriginIsolation()`은 이미 붙어 있으므로 코드 변경 없음.
-- **신규**: `public/_headers` — Cloudflare Pages 스타일 fallback을 넣어 두어, worker가 정적 파일을 직접 서빙하는 경로에서도 헤더가 유지되게 함:
-  ```
-  /*
-    Cross-Origin-Opener-Policy: same-origin
-    Cross-Origin-Embedder-Policy: credentialless
-  ```
-- 사용자에게 published URL 접속 후 DevTools에서 `crossOriginIsolated === true` 실측을 요청. false로 나오면 그때 nitro 훅 방식으로 별도 대응.
+if (typeof cfg !== "object" || cfg === null) {
+  console.error("[patch-wrangler] FAILED: wrangler.json root is not an object");
+  process.exit(1);
+}
 
-### 4) `convert.ts` 이중 fetch 통합
+cfg.assets = { ...(cfg.assets ?? {}), run_worker_first: true };
+await writeFile(target, JSON.stringify(cfg, null, 2));
+console.log("[patch-wrangler] OK: assets.run_worker_first = true");
+```
 
-- `assertReachable()` 제거. `toCachedBlobURL()` 하나에서 fetch → status 검사 → blob 반환.
-- `CORE_JS_URL`, `CORE_WASM_URL` 각각 한 번씩만 fetch.
-- 실패 시 에러 메시지에 어느 파일이 실패했는지 그대로 포함.
+### 2) `package.json`
 
-## 수정 대상 파일
+```json
+"postbuild": "node scripts/generate-sw.mjs && node scripts/patch-wrangler.mjs"
+```
 
-- 신규: `src/lib/engine-assets.ts`, `public/offline.html`, `public/_headers`
-- 수정: `src/lib/convert.ts`, `src/lib/whisper/transcribe.ts`, `src/lib/sw-register.ts`, `vite.config.ts`
+### 3) `scripts/generate-sw.mjs`
 
-## 범위 제외
+- `navigateFallback`, `navigateFallbackDenylist` 제거.
+- `runtimeCaching` 맨 앞에 내비게이션 `NetworkOnly` 규칙 추가. `handlerDidError`가 `undefined`를 반환하면 workbox가 그대로 통과시켜 흰 화면이 뜰 수 있으므로, `caches.match()` 실패 시 최소 offline `Response`로 방어.
 
-- UI, ID3 태그 로직, LyricsDialog/TagEditorForm은 손대지 않음.
-- Whisper 모델 재업로드나 asset 파이프라인 변경 없음.
-- nitro 커스텀 훅으로 COOP/COEP 재적용은 실측에서 문제 확인 후에만.
+```js
+{
+  urlPattern: ({ request, url }) =>
+    request.mode === "navigate" &&
+    !url.pathname.startsWith("/api") &&
+    !url.pathname.startsWith("/_oauth"),
+  handler: "NetworkOnly",
+  options: {
+    plugins: [
+      {
+        handlerDidError: async () => {
+          const cached = await caches.match("/offline.html");
+          if (cached) return cached;
+          return new Response(
+            "<!doctype html><meta charset='utf-8'><title>Offline</title><p>오프라인 상태입니다.</p>",
+            { status: 503, headers: { "content-type": "text/html; charset=utf-8" } },
+          );
+        },
+      },
+    ],
+  },
+},
+```
 
-## 검증 절차 (사용자 실행)
+기존 엔진 자산 CacheFirst 규칙은 유지.
 
-1. Published URL 접속 → DevTools console: `crossOriginIsolated` 값 확인.
-2. MP4 → MP3 변환 1회 성공 확인.
-3. SYLT 자동추출 1회 성공(모델 다운로드 포함) 확인.
-4. Application → Service Workers에 `/sw.js` active, Cache Storage에 engine 파일 존재 확인.
-5. Network Offline → 새로고침 → `offline.html` 표시 확인.
-6. 이미 열려있던 탭에서 변환/추출 재실행 → 캐시된 엔진으로 성공 확인.
+### 4) `src/components/ConverterForm.tsx`
+
+현재 흐름 재확인만. 사양과 일치하면 변경 없음.
+
+### 5) 조건부: `src/server.ts`
+
+정적 자산이 404/SPA fallback으로 응답되는 경우에만 `handler.fetch()` 결과가 404일 때 `env.ASSETS.fetch(request)`로 폴백 추가.
+
+## 배포 후 검증 (사용자 실행 및 보고 요청)
+
+### 사전 단계 (신규)
+
+0-a. **빌드 로그 확인**: 배포 로그에서
+- `[generate-sw] sw.js 생성 완료: N개 파일`
+- `[patch-wrangler] OK: assets.run_worker_first = true`
+두 줄이 모두 찍혔는지 확인. `[patch-wrangler] FAILED...` 또는 `skip: ... not found`가 뜨면 그 로그를 그대로 보고.
+
+0-b. **이전 SW/캐시 클리어**: DevTools → Application →
+- Service Workers → 기존 등록된 SW **Unregister**
+- Storage → **Clear site data** (Cache storage 포함)
+- 그런 다음 하드 리로드. (이 단계를 건너뛰면 이전 build의 stale precache가
+  계속 offline.html을 서빙해 검증 결과를 신뢰할 수 없음.)
+
+### 본 검증
+
+1. Published URL 접속 → SW `/sw.js` activated 확인.
+2. Network Offline → 새로고침 → `offline.html` 표시.
+3. Network Online 복귀 → 새로고침 → **실제 메인 페이지(MP4 변환 폼)** 표시.
+4. MP4 업로드 → 변환 → 진행률 → mp3 자동 다운로드.
+5. Network 탭 응답 헤더:
+   - `worker-*.js`, `/ffmpeg/ffmpeg-core.js`, `/assets/index-*.js`가 **200** + 올바른 `Content-Type`.
+   - `Cross-Origin-Embedder-Policy: credentialless`
+   - `Cross-Origin-Opener-Policy: same-origin`
+   - Console: `crossOriginIsolated === true`
+6. 정적 자산이 **404 / SPA fallback**으로 응답되면 그 URL·응답을 보고 → `src/server.ts`에 `env.ASSETS` 폴백 추가.
+
+## 수정 파일 요약
+
+- 신규: `scripts/patch-wrangler.mjs`
+- 수정: `package.json`, `scripts/generate-sw.mjs`
+- 조건부(검증 4·6 결과에 따라): `src/components/ConverterForm.tsx`, `src/server.ts`
