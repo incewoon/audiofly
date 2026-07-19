@@ -7,7 +7,7 @@ import { fetchFile, toBlobURL } from "@ffmpeg/util";
 // 싱글스레드 코어를 직접 사용 (멀티스레드 워커 문제 완전 제거)
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
-import workerURL from "@ffmpeg/ffmpeg/dist/esm/worker.js?url";
+import { CORE_WASM_URL, FFMPEG_WORKER_URL } from "./engine-assets";
 
 const LOAD_TIMEOUT_MS = 90_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
@@ -41,14 +41,16 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       // 싱글스레드 코어 + toBlobURL 조합으로 워커 문제 완전 회피
       const coreBlobURL = await toBlobURL(coreURL, "text/javascript");
       const wasmBlobURL = await toBlobURL(wasmURL, "application/wasm");
-      const classWorkerBlobURL = await toBlobURL(workerURL, "text/javascript");
-      console.log("[ffmpeg] loading worker from blob URL", classWorkerBlobURL);
+      const classWorkerBlobURL = await toBlobURL(FFMPEG_WORKER_URL, "text/javascript"); // 추가
+      
+      console.log("[ffmpeg] loading worker from blob URL", classWorkerBlobURL); // 추가
+
 
       await withTimeout(
         ff.load({
           coreURL: coreBlobURL,
           wasmURL: wasmBlobURL,
-          classWorkerURL: classWorkerBlobURL,
+          classWorkerURL: classWorkerBlobURL,   // 추가
         }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
