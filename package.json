@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "postinstall": "node scripts/copy-ffmpeg-worker.mjs",
     "build": "vite build",
     "postbuild": "node scripts/generate-sw.mjs && node scripts/patch-wrangler.mjs",
     "build:dev": "vite build --mode development",
