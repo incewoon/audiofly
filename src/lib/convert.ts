@@ -41,11 +41,14 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       // 싱글스레드 코어 + toBlobURL 조합으로 워커 문제 완전 회피
       const coreBlobURL = await toBlobURL(coreURL, "text/javascript");
       const wasmBlobURL = await toBlobURL(wasmURL, "application/wasm");
+      const classWorkerBlobURL = await toBlobURL(workerURL, "text/javascript");
+      console.log("[ffmpeg] loading worker from blob URL", classWorkerBlobURL);
 
       await withTimeout(
         ff.load({
           coreURL: coreBlobURL,
           wasmURL: wasmBlobURL,
+          classWorkerURL: classWorkerBlobURL,
         }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
