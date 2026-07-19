@@ -7,6 +7,7 @@ import { CORE_WASM_URL } from "./engine-assets";
 // 싱글스레드 코어를 직접 사용 (멀티스레드 워커 문제 완전 제거)
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
+import workerURL from "@ffmpeg/ffmpeg/dist/esm/worker.js?url";
 
 const LOAD_TIMEOUT_MS = 90_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
