@@ -3,6 +3,8 @@
 // Client-only Whisper.cpp WASM wrapper.
 // Loaded via dynamic import so it never lands in the server bundle.
 
+import { toBlobURL } from "@ffmpeg/util";
+
 export interface WhisperSegment {
   startMs: number;
   endMs: number;
@@ -147,10 +149,23 @@ export async function transcribeMp3(
     import("@transcribe/transcriber"),
     import(/* @vite-ignore */ SHOUT_WASM_JS_URL),
   ]);
-  const createModule = (shoutMod as any).default;
-  if (typeof createModule !== "function") {
+  const rawCreateModule = (shoutMod as any).default;
+  if (typeof rawCreateModule !== "function") {
     throw new Error("Whisper WASM 모듈 로드 실패: @transcribe/shout default export가 함수가 아님");
   }
+
+  // shout.wasm.js는 실제 연산 시작 시 pthread 워커를 하나 더 스폰하는데,
+  // Module["mainScriptUrlOrBlob"]을 안 주면 실제 네트워크 경로
+  // (new URL("shout.wasm.js", import.meta.url))로 새 Worker를 띄운다.
+  // 이 정적 파일 응답엔 COOP/COEP 헤더가 안 붙어있어(Cloudflare Static
+  // Assets가 Worker fetch 핸들러를 안 거치고 직접 서빙) 그 워커가 조용히
+  // 차단된다(ffmpeg의 classWorkerURL과 동일한 문제). 같은 파일을 우리가
+  // 미리 fetch해서 blob: URL로 만들어 mainScriptUrlOrBlob으로 넘기면,
+  // 네트워크 경로를 아예 안 타므로 이 COEP 제약을 우회한다.
+  const shoutBlobURL = await toBlobURL(SHOUT_WASM_JS_URL, "text/javascript");
+  console.log("[whisper] pthread worker will use blob URL", shoutBlobURL);
+  const createModule = (moduleArg: Record<string, unknown> = {}) =>
+    rawCreateModule({ ...moduleArg, mainScriptUrlOrBlob: shoutBlobURL });
 
   try {
     if (!cachedTranscriber) {
