@@ -1,3 +1,5 @@
+// src/routeTree.gen.ts
+
 /* eslint-disable */
 
 // @ts-nocheck
