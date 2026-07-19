@@ -73,7 +73,6 @@ const { count, size, warnings } = await generateSW({
         urlPattern: ({ url }) =>
           url.origin === self.location.origin &&
           (url.pathname === "/ffmpeg/ffmpeg-core.js" ||
-           url.pathname === "/ffmpeg/worker.js" ||        // 추가
            url.pathname === "/whisper/shout.wasm.js"),
         handler: "CacheFirst",
       options: {
