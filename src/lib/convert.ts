@@ -1,8 +1,12 @@
+//src/lib/convert.ts
+
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
+
+import workerURL from "@ffmpeg/ffmpeg/worker?worker&url";
 
 const LOAD_TIMEOUT_MS = 90_000;
 const CONVERT_TIMEOUT_MS = 5 * 60_000;
@@ -34,12 +38,14 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       log("loading single-thread ffmpeg core...");
       const coreBlobURL = await toBlobURL(coreURL, "text/javascript");
       const wasmBlobURL = await toBlobURL(wasmURL, "application/wasm");
-
+      const classWorkerBlobURL = await toBlobURL(workerURL, "text/javascript");
+      console.log("[ffmpeg] loading worker from blob URL", classWorkerBlobURL);
+      
       await withTimeout(
         ff.load({
           coreURL: coreBlobURL,
           wasmURL: wasmBlobURL,
-          // classWorkerURL은 아래 조사 결과를 확인한 뒤 추가합니다.
+          classWorkerURL: classWorkerBlobURL,
         }),
         LOAD_TIMEOUT_MS,
         "ffmpeg.load()",
