@@ -1,3 +1,5 @@
+//src/routes/tag-editor.tsx
+
 import { createFileRoute } from "@tanstack/react-router";
 import { TagEditorForm } from "@/components/TagEditorForm";
 import { Toaster } from "@/components/ui/sonner";
