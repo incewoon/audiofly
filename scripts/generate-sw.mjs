@@ -70,11 +70,12 @@ const { count, size, warnings } = await generateSW({
     // the real app shell. Only fall back to the precached offline.html when
     // the network genuinely fails.
     {
-      urlPattern: ({ request, url }) =>
-        request.mode === "navigate" &&
-        !url.pathname.startsWith("/api") &&
-        !url.pathname.startsWith("/_oauth"),
-      handler: "NetworkOnly",
+        urlPattern: ({ url }) =>
+          url.origin === self.location.origin &&
+          (url.pathname === "/ffmpeg/ffmpeg-core.js" ||
+           url.pathname === "/ffmpeg/worker.js" ||        // 추가
+           url.pathname === "/whisper/shout.wasm.js"),
+        handler: "CacheFirst",
       options: {
         plugins: [
           {
