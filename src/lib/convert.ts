@@ -45,6 +45,14 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       
       console.log("[ffmpeg] loading worker from blob URL", classWorkerBlobURL); // 추가
 
+      // ── 임시 진단 코드: 원인 확인 후 삭제 ──────────────────────────
+      const diagWorker = new Worker(classWorkerBlobURL, { type: "module" });
+      diagWorker.onmessage = (e) => console.log("[diag] worker responded:", e.data);
+      diagWorker.onerror = (e) => console.error("[diag] worker onerror:", e.message, e.filename, e.lineno);
+      diagWorker.onmessageerror = (e) => console.error("[diag] worker onmessageerror:", e);
+      setTimeout(() => console.log("[diag] 5초 경과 — 위에 onerror/onmessage 로그가 없으면 워커는 살아있지만 응답이 없는 것"), 5000);
+      // ────────────────────────────────────────────────────────────
+
 
       await withTimeout(
         ff.load({
