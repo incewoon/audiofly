@@ -32,7 +32,7 @@ const MODEL_URL = WHISPER_MODEL_URL;
 const MODEL_CACHE_URL = MODEL_URL;
 const MODEL_CACHE_NAME = ENGINE_CACHE_NAME;
 const INIT_TIMEOUT_MS = 120_000;
-const TRANSCRIBE_TIMEOUT_MS = 10 * 60_000;
+const TRANSCRIBE_TIMEOUT_MS = 15 * 60_000;
 
 function makeAbortableTimeout(ms: number, tag: string) {
   const controller = new AbortController();
