@@ -182,11 +182,13 @@ export async function transcribeMp3(
           console.log("[whisper] segment", segment);
           const seg = (segment as any)?.segment;
           if (seg?.text) {
-            cb.onSegment?.({
+            const s: WhisperSegment = {
               startMs: Math.max(0, Math.round(seg.offsets?.from ?? 0)),
               endMs: Math.max(0, Math.round(seg.offsets?.to ?? 0)),
               text: String(seg.text).trim(),
-            });
+            };
+            collectedSegments.push(s);   // 추가: 실패 시 부분 결과 복구용
+            cb.onSegment?.(s);
           }
         },
         onProgress: (p: number) => {
