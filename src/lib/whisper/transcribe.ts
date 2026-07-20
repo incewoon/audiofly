@@ -206,10 +206,10 @@ export async function transcribeMp3(
     console.log("[whisper] transcribing…");
     const result: any = await withTimeout(
       cachedTranscriber.transcribe(file, {
-        lang: "ko",
+        lang: "auto",
         threads: 1,
         token_timestamps: true,
-        suppress_non_speech: true,
+        suppress_non_speech: false,
       }),
       TRANSCRIBE_TIMEOUT_MS,
       "FileTranscriber.transcribe()",
