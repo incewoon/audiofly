@@ -69,6 +69,7 @@ export function LyricsDialog({
     setBusy("model");
     setModelPct(0);
     setAsrPct(0);
+    setSyltDraft("");
     try {
       const [{ transcribeMp3 }, { detectSilenceGaps, splitOnSilence, normalizeSegments }] = await Promise.all([
         import("@/lib/whisper/transcribe"),
@@ -85,6 +86,9 @@ export function LyricsDialog({
         onProgress: (p) => {
           setBusy("transcribe");
           setAsrPct(Math.min(100, Math.round(p)));
+        },
+        onSegment: (seg) => {   // 추가: 세그먼트 도착 즉시 텍스트박스에 한 줄씩 추가
+          setSyltDraft((prev) => `${prev}${prev ? "\n" : ""}[${formatSyltTime(seg.startMs)}] ${seg.text}`);
         },
       });
 
