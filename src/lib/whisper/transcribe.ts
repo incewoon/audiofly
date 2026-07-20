@@ -138,6 +138,7 @@ export async function transcribeMp3(
   }
 
   console.log("[whisper] loading model…");
+  const collectedSegments: WhisperSegment[] = [];
   const model = await loadModelBlob(cb);
   console.log("[whisper] model ready:", model.size, "bytes");
 
@@ -231,6 +232,14 @@ export async function transcribeMp3(
     // Drop the cached instance so the next attempt gets a fresh worker.
     await resetTranscriber();
     console.error("[whisper] failed", err);
+    // whisper.cpp WASM이 긴 오디오 후반부에서 내부적으로 멈추는 경우가 있고
+    // (failed to decode/encode 이후 응답 없음), 이 실패는 JS로 전달되지
+    // 않아 타임아웃까지 그냥 대기하게 된다. 이미 onSegment로 도착한
+    // 세그먼트가 있다면 버리지 않고 부분 결과로라도 반환한다.
+    if (collectedSegments.length > 0) {
+      console.warn(`[whisper] 실패 후 부분 결과 ${collectedSegments.length}개 세그먼트 반환`);
+      return collectedSegments;
+    }
     throw err;
   }
 }
