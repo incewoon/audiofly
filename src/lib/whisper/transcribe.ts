@@ -40,28 +40,42 @@ function makeAbortableTimeout(ms: number, tag: string) {
   return { controller, clear: () => window.clearTimeout(timeout) };
 }
 
-async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
+async function openModelCache() {
   if (!("caches" in globalThis)) {
     throw new Error("이 브라우저는 오프라인 모델 캐시를 지원하지 않습니다.");
   }
+  return caches.open(MODEL_CACHE_NAME);
+}
 
-  const cache = await caches.open(MODEL_CACHE_NAME);
+/** 캐시에 Whisper 모델이 저장돼 있는지 확인 */
+export async function isWhisperModelCached(): Promise<boolean> {
+  if (!("caches" in globalThis)) return false;
+  const cache = await openModelCache();
+  const hit = await cache.match(new Request(MODEL_CACHE_URL));
+  return !!hit;
+}
+
+/** 캐시에서 Whisper 모델 삭제 */
+export async function deleteWhisperModel(): Promise<void> {
+  if (!("caches" in globalThis)) return;
+  const cache = await openModelCache();
+  await cache.delete(new Request(MODEL_CACHE_URL));
+}
+
+async function fetchAndCacheModel(
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<Blob> {
+  const cache = await openModelCache();
   const cacheKey = new Request(MODEL_CACHE_URL);
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    const buf = await cached.arrayBuffer();
-    cb?.onModelProgress?.(buf.byteLength, buf.byteLength);
-    return new File([buf], "model.bin", { type: "application/octet-stream" });
-  }
 
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    throw new Error("음성인식 모델이 아직 캐시되지 않았습니다. 최초 1회는 온라인 상태에서 자동추출을 실행해 주세요.");
+    throw new Error("오프라인 상태입니다. 온라인 상태에서 모듈을 먼저 다운로드해 주세요.");
   }
 
-  const modelFetch = makeAbortableTimeout(120_000, "Whisper model download");
+  const modelFetch = makeAbortableTimeout(10 * 60_000, "Whisper model download");
   const res = await fetch(MODEL_URL, {
-    cache: "force-cache",
-    credentials: "same-origin",
+    // 외부 origin(HF) — credentials 없이 CORS
+    mode: "cors",
     signal: modelFetch.controller.signal,
   }).finally(modelFetch.clear);
   if (!res.ok || !res.body) throw new Error(`모델 다운로드 실패 (${res.status})`);
@@ -75,18 +89,48 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
     if (value) {
       chunks.push(value);
       loaded += value.byteLength;
-      cb?.onModelProgress?.(loaded, total || loaded);
+      onProgress?.(loaded, total || loaded);
     }
   }
   const blob = new Blob(chunks as BlobPart[], { type: "application/octet-stream" });
   await cache.put(
     cacheKey,
     new Response(blob, {
-      headers: { "content-type": "application/octet-stream", "content-length": String(blob.size) },
+      headers: {
+        "content-type": "application/octet-stream",
+        "content-length": String(blob.size),
+      },
     }),
   );
-  return new File([blob], "ggml-base-q5_1.bin", { type: "application/octet-stream" });
+  return blob;
 }
+
+/** 사용자가 명시적으로 모듈을 다운로드할 때 호출. 이미 캐시돼 있으면 no-op. */
+export async function downloadWhisperModel(
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<void> {
+  if (await isWhisperModelCached()) {
+    onProgress?.(1, 1);
+    return;
+  }
+  await fetchAndCacheModel(onProgress);
+}
+
+async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
+  const cache = await openModelCache();
+  const cacheKey = new Request(MODEL_CACHE_URL);
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const buf = await cached.arrayBuffer();
+    cb?.onModelProgress?.(buf.byteLength, buf.byteLength);
+    return new File([buf], "model.bin", { type: "application/octet-stream" });
+  }
+  // 캐시가 없다면 — 자동추출 호출 시점에서는 사용자가 미리 다운로드해야 한다.
+  throw new Error(
+    "음성인식 모듈이 설치되지 않았습니다. 온라인 상태에서 먼저 '모듈 다운로드'를 실행해 주세요.",
+  );
+}
+
 
 let cachedTranscriber: any = null;
 
@@ -127,9 +171,15 @@ async function resetTranscriber() {
   try { current?.destroy?.(); } catch {}
 }
 
+export type WhisperLang = "ko" | "en";
+
+export interface TranscribeOptions extends TranscribeCallbacks {
+  lang?: WhisperLang;
+}
+
 export async function transcribeMp3(
   file: File,
-  cb: TranscribeCallbacks = {},
+  cb: TranscribeOptions = {},
 ): Promise<WhisperSegment[]> {
   if (!(globalThis as any).crossOriginIsolated) {
     throw new Error(
@@ -207,12 +257,13 @@ export async function transcribeMp3(
     }
 
     console.log("[whisper] transcribing…");
+    const lang: WhisperLang = cb.lang ?? "ko";
     const result: any = await withTimeout(
       cachedTranscriber.transcribe(file, {
-        lang: "auto",
-        threads: Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4)),  // 1 → 동적으로
+        lang,
+        threads: Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4)),
         token_timestamps: true,
-        suppress_non_speech: false,
+        suppress_non_speech: true,
       }),
       TRANSCRIBE_TIMEOUT_MS,
       "FileTranscriber.transcribe()",
