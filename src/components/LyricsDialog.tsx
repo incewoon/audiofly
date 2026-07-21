@@ -14,15 +14,18 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Mic } from "lucide-react";
+import { Loader2, Mic, Download, Check, Trash2 } from "lucide-react";
 import {
   serializeSylt,
   parseSylt,
   formatSyltTime,
   type SyltLine,
 } from "@/lib/id3";
+import type { WhisperLang } from "@/lib/whisper/transcribe";
 
 type Mode = "uslt" | "sylt";
+
+const LANG_STORAGE_KEY = "audiofly.whisper.lang";
 
 export interface LyricsDialogProps {
   open: boolean;
@@ -46,24 +49,76 @@ export function LyricsDialog({
   const [mode, setMode] = useState<Mode>(initialMode ?? (initialSynced.length > 0 ? "sylt" : "uslt"));
   const [usltDraft, setUsltDraft] = useState(initialLyrics);
   const [syltDraft, setSyltDraft] = useState(serializeSylt(initialSynced));
-  const [busy, setBusy] = useState<null | "model" | "transcribe">(null);
+  const [busy, setBusy] = useState<null | "model" | "transcribe" | "download">(null);
   const [modelPct, setModelPct] = useState(0);
   const [asrPct, setAsrPct] = useState(0);
+  const [lang, setLang] = useState<WhisperLang>("ko");
+  const [modelReady, setModelReady] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setUsltDraft(initialLyrics);
-      setSyltDraft(serializeSylt(initialSynced));
-      setMode(initialMode ?? (initialSynced.length > 0 ? "sylt" : "uslt"));
-      setBusy(null);
-      setModelPct(0);
-      setAsrPct(0);
-    }
+    if (!open) return;
+    setUsltDraft(initialLyrics);
+    setSyltDraft(serializeSylt(initialSynced));
+    setMode(initialMode ?? (initialSynced.length > 0 ? "sylt" : "uslt"));
+    setBusy(null);
+    setModelPct(0);
+    setAsrPct(0);
+    try {
+      const saved = localStorage.getItem(LANG_STORAGE_KEY);
+      if (saved === "ko" || saved === "en") setLang(saved);
+    } catch {}
+    // 캐시 상태 조회
+    (async () => {
+      try {
+        const { isWhisperModelCached } = await import("@/lib/whisper/transcribe");
+        setModelReady(await isWhisperModelCached());
+      } catch {
+        setModelReady(false);
+      }
+    })();
   }, [open, initialLyrics, initialSynced, initialMode]);
+
+  const persistLang = (v: WhisperLang) => {
+    setLang(v);
+    try { localStorage.setItem(LANG_STORAGE_KEY, v); } catch {}
+  };
+
+  const handleDownloadModel = async () => {
+    setBusy("download");
+    setModelPct(0);
+    try {
+      const { downloadWhisperModel } = await import("@/lib/whisper/transcribe");
+      await downloadWhisperModel((loaded, total) => {
+        setModelPct(total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0);
+      });
+      setModelReady(true);
+      toast.success("음성인식 모듈이 설치되었습니다. 이제 오프라인에서도 동작합니다.");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message ?? "모듈 다운로드에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDeleteModel = async () => {
+    try {
+      const { deleteWhisperModel } = await import("@/lib/whisper/transcribe");
+      await deleteWhisperModel();
+      setModelReady(false);
+      toast.success("설치된 모듈을 삭제했습니다.");
+    } catch (e: any) {
+      toast.error(e?.message ?? "모듈 삭제에 실패했습니다.");
+    }
+  };
 
   const runTranscription = async () => {
     if (!mp3File) {
       toast.error("MP3 파일을 먼저 선택해 주세요.");
+      return;
+    }
+    if (!modelReady) {
+      toast.error("먼저 '모듈 다운로드'를 실행해 주세요.");
       return;
     }
     setBusy("model");
@@ -79,6 +134,7 @@ export function LyricsDialog({
       const gapsPromise = detectSilenceGaps(mp3File).catch(() => []);
 
       const raw = await transcribeMp3(mp3File, {
+        lang,
         onModelProgress: (loaded, total) => {
           setBusy("model");
           setModelPct(total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0);
@@ -87,7 +143,7 @@ export function LyricsDialog({
           setBusy("transcribe");
           setAsrPct(Math.min(100, Math.round(p)));
         },
-        onSegment: (seg) => {   // 추가: 세그먼트 도착 즉시 텍스트박스에 한 줄씩 추가
+        onSegment: (seg) => {
           setSyltDraft((prev) => `${prev}${prev ? "\n" : ""}[${formatSyltTime(seg.startMs)}] ${seg.text}`);
         },
       });
@@ -147,16 +203,77 @@ export function LyricsDialog({
           />
         ) : (
           <div className="space-y-2">
+            {/* 모듈 상태 + 언어 토글 */}
+            <div className="flex items-center justify-between gap-2 rounded-md border p-2">
+              <div className="flex items-center gap-2 text-[12px]">
+                {modelReady ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
+                    <Check className="h-3.5 w-3.5" /> 모듈: 다운로드됨
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">모듈: 미설치 (약 190MB)</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => persistLang("ko")}
+                  className={`px-2 py-1 rounded text-[12px] border ${lang === "ko" ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+                  disabled={busy !== null}
+                >
+                  한국어
+                </button>
+                <button
+                  type="button"
+                  onClick={() => persistLang("en")}
+                  className={`px-2 py-1 rounded text-[12px] border ${lang === "en" ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+                  disabled={busy !== null}
+                >
+                  English
+                </button>
+              </div>
+            </div>
+
+            {/* 모듈 다운로드 / 삭제 */}
+            {!modelReady && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownloadModel}
+                  disabled={busy !== null}
+                >
+                  {busy === "download" ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-1.5 h-4 w-4" />
+                  )}
+                  음성인식 모듈 다운로드
+                </Button>
+                {busy === "download" && (
+                  <div className="flex-1 flex items-center gap-2">
+                    <Progress value={modelPct} className="h-2" />
+                    <span className="text-[11px] text-muted-foreground w-14 text-right">{modelPct}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
                 onClick={runTranscription}
-                disabled={!mp3File || busy !== null}
+                disabled={!mp3File || busy !== null || !modelReady}
               >
-                {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mic className="mr-1.5 h-4 w-4" />}
-                음성인식으로 자동 추출
+                {busy === "model" || busy === "transcribe" ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mic className="mr-1.5 h-4 w-4" />
+                )}
+                음성인식으로 자동추출
               </Button>
               {busy === "model" && (
                 <div className="flex-1 flex items-center gap-2">
@@ -170,17 +287,29 @@ export function LyricsDialog({
                   <span className="text-[11px] text-muted-foreground w-14 text-right">인식 {asrPct}%</span>
                 </div>
               )}
+              {modelReady && busy === null && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleDeleteModel}
+                  title="설치된 모듈 삭제"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
+
             <Textarea
               value={syltDraft}
               onChange={(e) => setSyltDraft(e.target.value)}
               onDoubleClick={(e) => insertTimestampAtCursor(e.currentTarget)}
               placeholder="[00:00.00] 첫 번째 문장&#10;[00:03.42] 두 번째 문장"
-              className="min-h-[34vh] font-mono text-[13px]"
+              className="min-h-[30vh] font-mono text-[13px]"
             />
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              최초 실행 시 Whisper 모델(약 57MB)이 브라우저에 캐시됩니다. 이후에는 오프라인으로 작동합니다. 인식은
-              시간이 걸릴 수 있으며 결과는 편집 가능합니다.
+              최초 1회 온라인에서 모듈을 다운로드하면 이후에는 오프라인에서도 동작합니다.
+              선택한 언어(한국어/English)로 인식되며 결과는 편집 가능합니다.
             </p>
           </div>
         )}
