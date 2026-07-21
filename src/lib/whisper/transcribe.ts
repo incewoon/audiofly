@@ -257,12 +257,13 @@ export async function transcribeMp3(
     }
 
     console.log("[whisper] transcribing…");
+    const lang: WhisperLang = cb.lang ?? "ko";
     const result: any = await withTimeout(
       cachedTranscriber.transcribe(file, {
-        lang: "auto",
-        threads: Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4)),  // 1 → 동적으로
+        lang,
+        threads: Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4)),
         token_timestamps: true,
-        suppress_non_speech: false,
+        suppress_non_speech: true,
       }),
       TRANSCRIBE_TIMEOUT_MS,
       "FileTranscriber.transcribe()",
