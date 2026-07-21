@@ -171,9 +171,15 @@ async function resetTranscriber() {
   try { current?.destroy?.(); } catch {}
 }
 
+export type WhisperLang = "ko" | "en";
+
+export interface TranscribeOptions extends TranscribeCallbacks {
+  lang?: WhisperLang;
+}
+
 export async function transcribeMp3(
   file: File,
-  cb: TranscribeCallbacks = {},
+  cb: TranscribeOptions = {},
 ): Promise<WhisperSegment[]> {
   if (!(globalThis as any).crossOriginIsolated) {
     throw new Error(
