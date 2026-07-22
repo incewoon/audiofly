@@ -20,19 +20,20 @@ export interface TranscribeCallbacks {
 // Asset URLs come from src/lib/engine-assets.ts (single source of truth backed by
 // the Lovable asset pointer JSON). Never hardcode `/__l5e/...` here — it drifts.
 import {
-  WHISPER_MODEL_URL,
+  WHISPER_MODEL_URLS,
   SHOUT_WASM_JS_URL,
   ENGINE_CACHE_NAME,
 } from "../engine-assets";
 
-const MODEL_URL = WHISPER_MODEL_URL;
-// Cache Storage requires an http(s) or same-origin URL as the Request key —
-// custom schemes like "whisper-model:" throw
-// `Failed to execute 'put' on 'Cache': Request scheme 'whisper-model' is unsupported`.
-const MODEL_CACHE_URL = MODEL_URL;
+export type WhisperLang = "ko" | "en";
+
 const MODEL_CACHE_NAME = ENGINE_CACHE_NAME;
 const INIT_TIMEOUT_MS = 120_000;
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60_000;
+
+function modelUrlFor(lang: WhisperLang): string {
+  return WHISPER_MODEL_URLS[lang];
+}
 
 function makeAbortableTimeout(ms: number, tag: string) {
   const controller = new AbortController();
@@ -47,33 +48,35 @@ async function openModelCache() {
   return caches.open(MODEL_CACHE_NAME);
 }
 
-/** 캐시에 Whisper 모델이 저장돼 있는지 확인 */
-export async function isWhisperModelCached(): Promise<boolean> {
+/** 캐시에 지정 언어의 Whisper 모델이 저장돼 있는지 확인 */
+export async function isWhisperModelCached(lang: WhisperLang = "ko"): Promise<boolean> {
   if (!("caches" in globalThis)) return false;
   const cache = await openModelCache();
-  const hit = await cache.match(new Request(MODEL_CACHE_URL));
+  const hit = await cache.match(new Request(modelUrlFor(lang)));
   return !!hit;
 }
 
-/** 캐시에서 Whisper 모델 삭제 */
-export async function deleteWhisperModel(): Promise<void> {
+/** 캐시에서 지정 언어의 Whisper 모델 삭제 */
+export async function deleteWhisperModel(lang: WhisperLang = "ko"): Promise<void> {
   if (!("caches" in globalThis)) return;
   const cache = await openModelCache();
-  await cache.delete(new Request(MODEL_CACHE_URL));
+  await cache.delete(new Request(modelUrlFor(lang)));
 }
 
 async function fetchAndCacheModel(
+  lang: WhisperLang,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Blob> {
+  const url = modelUrlFor(lang);
   const cache = await openModelCache();
-  const cacheKey = new Request(MODEL_CACHE_URL);
+  const cacheKey = new Request(url);
 
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     throw new Error("오프라인 상태입니다. 온라인 상태에서 모듈을 먼저 다운로드해 주세요.");
   }
 
   const modelFetch = makeAbortableTimeout(10 * 60_000, "Whisper model download");
-  const res = await fetch(MODEL_URL, {
+  const res = await fetch(url, {
     // 외부 origin(HF) — credentials 없이 CORS
     mode: "cors",
     signal: modelFetch.controller.signal,
@@ -105,20 +108,21 @@ async function fetchAndCacheModel(
   return blob;
 }
 
-/** 사용자가 명시적으로 모듈을 다운로드할 때 호출. 이미 캐시돼 있으면 no-op. */
+/** 사용자가 명시적으로 언어별 모듈을 다운로드할 때 호출. 이미 캐시돼 있으면 no-op. */
 export async function downloadWhisperModel(
+  lang: WhisperLang = "ko",
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<void> {
-  if (await isWhisperModelCached()) {
+  if (await isWhisperModelCached(lang)) {
     onProgress?.(1, 1);
     return;
   }
-  await fetchAndCacheModel(onProgress);
+  await fetchAndCacheModel(lang, onProgress);
 }
 
-async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
+async function loadModelBlob(lang: WhisperLang, cb?: TranscribeCallbacks): Promise<File> {
   const cache = await openModelCache();
-  const cacheKey = new Request(MODEL_CACHE_URL);
+  const cacheKey = new Request(modelUrlFor(lang));
   const cached = await cache.match(cacheKey);
   if (cached) {
     const buf = await cached.arrayBuffer();
@@ -127,7 +131,7 @@ async function loadModelBlob(cb?: TranscribeCallbacks): Promise<File> {
   }
   // 캐시가 없다면 — 자동추출 호출 시점에서는 사용자가 미리 다운로드해야 한다.
   throw new Error(
-    "음성인식 모듈이 설치되지 않았습니다. 온라인 상태에서 먼저 '모듈 다운로드'를 실행해 주세요.",
+    "선택한 언어의 음성인식 모듈이 설치되지 않았습니다. 온라인 상태에서 먼저 '모듈 다운로드'를 실행해 주세요.",
   );
 }
 
@@ -171,8 +175,6 @@ async function resetTranscriber() {
   try { current?.destroy?.(); } catch {}
 }
 
-export type WhisperLang = "ko" | "en";
-
 export interface TranscribeOptions extends TranscribeCallbacks {
   lang?: WhisperLang;
 }
@@ -187,9 +189,10 @@ export async function transcribeMp3(
     );
   }
 
-  console.log("[whisper] loading model…");
+  const lang: WhisperLang = cb.lang ?? "ko";
+  console.log("[whisper] loading model…", lang);
   const collectedSegments: WhisperSegment[] = [];
-  const model = await loadModelBlob(cb);
+  const model = await loadModelBlob(lang, cb);
   console.log("[whisper] model ready:", model.size, "bytes");
 
   console.log("[whisper] validating audio decode…");
@@ -256,8 +259,7 @@ export async function transcribeMp3(
       };
     }
 
-    console.log("[whisper] transcribing…");
-    const lang: WhisperLang = cb.lang ?? "ko";
+    console.log("[whisper] transcribing…", lang);
     const result: any = await withTimeout(
       cachedTranscriber.transcribe(file, {
         lang,
