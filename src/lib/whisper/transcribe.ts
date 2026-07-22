@@ -189,9 +189,10 @@ export async function transcribeMp3(
     );
   }
 
-  console.log("[whisper] loading model…");
+  const lang: WhisperLang = cb.lang ?? "ko";
+  console.log("[whisper] loading model…", lang);
   const collectedSegments: WhisperSegment[] = [];
-  const model = await loadModelBlob(cb);
+  const model = await loadModelBlob(lang, cb);
   console.log("[whisper] model ready:", model.size, "bytes");
 
   console.log("[whisper] validating audio decode…");
