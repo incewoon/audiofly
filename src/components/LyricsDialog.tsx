@@ -67,16 +67,24 @@ export function LyricsDialog({
       const saved = localStorage.getItem(LANG_STORAGE_KEY);
       if (saved === "ko" || saved === "en") setLang(saved);
     } catch {}
-    // 캐시 상태 조회
+  }, [open, initialLyrics, initialSynced, initialMode]);
+
+  // 언어가 바뀔 때마다 해당 언어 모델의 캐시 상태를 재조회
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
     (async () => {
+      setModelReady(null);
       try {
         const { isWhisperModelCached } = await import("@/lib/whisper/transcribe");
-        setModelReady(await isWhisperModelCached());
+        const ok = await isWhisperModelCached(lang);
+        if (!cancelled) setModelReady(ok);
       } catch {
-        setModelReady(false);
+        if (!cancelled) setModelReady(false);
       }
     })();
-  }, [open, initialLyrics, initialSynced, initialMode]);
+    return () => { cancelled = true; };
+  }, [open, lang]);
 
   const persistLang = (v: WhisperLang) => {
     setLang(v);
@@ -88,11 +96,11 @@ export function LyricsDialog({
     setModelPct(0);
     try {
       const { downloadWhisperModel } = await import("@/lib/whisper/transcribe");
-      await downloadWhisperModel((loaded, total) => {
+      await downloadWhisperModel(lang, (loaded, total) => {
         setModelPct(total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0);
       });
       setModelReady(true);
-      toast.success("음성인식 모듈이 설치되었습니다. 이제 오프라인에서도 동작합니다.");
+      toast.success(`${lang === "ko" ? "한국어" : "English"} 음성인식 모듈이 설치되었습니다.`);
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message ?? "모듈 다운로드에 실패했습니다.");
@@ -104,9 +112,9 @@ export function LyricsDialog({
   const handleDeleteModel = async () => {
     try {
       const { deleteWhisperModel } = await import("@/lib/whisper/transcribe");
-      await deleteWhisperModel();
+      await deleteWhisperModel(lang);
       setModelReady(false);
-      toast.success("설치된 모듈을 삭제했습니다.");
+      toast.success(`${lang === "ko" ? "한국어" : "English"} 모듈을 삭제했습니다.`);
     } catch (e: any) {
       toast.error(e?.message ?? "모듈 삭제에 실패했습니다.");
     }
