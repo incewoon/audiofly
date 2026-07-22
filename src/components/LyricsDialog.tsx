@@ -22,6 +22,7 @@ import {
   type SyltLine,
 } from "@/lib/id3";
 import type { WhisperLang } from "@/lib/whisper/transcribe";
+import { WHISPER_MODEL_SIZE_LABELS } from "@/lib/engine-assets";
 
 type Mode = "uslt" | "sylt";
 
