@@ -20,19 +20,20 @@ export interface TranscribeCallbacks {
 // Asset URLs come from src/lib/engine-assets.ts (single source of truth backed by
 // the Lovable asset pointer JSON). Never hardcode `/__l5e/...` here — it drifts.
 import {
-  WHISPER_MODEL_URL,
+  WHISPER_MODEL_URLS,
   SHOUT_WASM_JS_URL,
   ENGINE_CACHE_NAME,
 } from "../engine-assets";
 
-const MODEL_URL = WHISPER_MODEL_URL;
-// Cache Storage requires an http(s) or same-origin URL as the Request key —
-// custom schemes like "whisper-model:" throw
-// `Failed to execute 'put' on 'Cache': Request scheme 'whisper-model' is unsupported`.
-const MODEL_CACHE_URL = MODEL_URL;
+export type WhisperLang = "ko" | "en";
+
 const MODEL_CACHE_NAME = ENGINE_CACHE_NAME;
 const INIT_TIMEOUT_MS = 120_000;
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60_000;
+
+function modelUrlFor(lang: WhisperLang): string {
+  return WHISPER_MODEL_URLS[lang];
+}
 
 function makeAbortableTimeout(ms: number, tag: string) {
   const controller = new AbortController();
