@@ -220,7 +220,7 @@ export function LyricsDialog({
                     <Check className="h-3.5 w-3.5" /> 모듈: 다운로드됨
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">모듈: 미설치 (약 190MB)</span>
+                  <span className="text-muted-foreground">모듈: 미설치 ({WHISPER_MODEL_SIZE_LABELS[lang]})</span>
                 )}
               </div>
               <div className="flex items-center gap-1">
