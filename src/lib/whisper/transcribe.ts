@@ -175,8 +175,6 @@ async function resetTranscriber() {
   try { current?.destroy?.(); } catch {}
 }
 
-export type WhisperLang = "ko" | "en";
-
 export interface TranscribeOptions extends TranscribeCallbacks {
   lang?: WhisperLang;
 }
