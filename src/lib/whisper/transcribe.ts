@@ -262,7 +262,7 @@ export async function transcribeMp3(
       cachedTranscriber.transcribe(file, {
         lang,
         threads: Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 4)),
-        token_timestamps: true,
+        token_timestamps: false,
         suppress_non_speech: true,
       }),
       TRANSCRIBE_TIMEOUT_MS,
