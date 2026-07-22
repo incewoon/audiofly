@@ -19,11 +19,11 @@ export const CORE_WASM_URL = ffmpegCoreWasm.url;
 // - en: 영어 전용 small.en-q5_1 (~181MB) — 영어 정확도 극대화
 export const WHISPER_MODEL_URLS = {
   ko: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin",
-  en: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q5_1.bin",
+  en: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin",
 } as const;
 export const WHISPER_MODEL_SIZE_LABELS = {
   ko: "약 60MB",
-  en: "약 180MB",
+  en: "약 60MB",
 } as const;
 export const SHOUT_WASM_JS_URL = "/whisper/shout.wasm.js";
 
