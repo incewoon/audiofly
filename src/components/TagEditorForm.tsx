@@ -94,7 +94,7 @@ export function TagEditorForm() {
       setCoverPreview(tags.cover.previewUrl);
     }
     setStatus("idle");
-    toast.success("기존 태그를 불러왔습니다.");
+    toast.success("Existing tags loaded.");
   };
 
   const openMp3Picker = async () => {
@@ -113,11 +113,11 @@ export function TagEditorForm() {
   const handleCoverPick = async (f: File | null) => {
     if (!f) return;
     if (!["image/jpeg", "image/png"].includes(f.type)) {
-      toast.error("JPEG 또는 PNG 이미지만 지원됩니다.");
+      toast.error("Only JPEG or PNG images are supported.");
       return;
     }
     if (f.size > 1024 * 1024) {
-      toast.warning("이미지가 1MB를 초과합니다. 재생기 호환성이 낮아질 수 있어요.");
+      toast.warning("Image is larger than 1MB. Some players may not display it.");
     }
     const buf = await f.arrayBuffer();
     if (coverPreview) URL.revokeObjectURL(coverPreview);
@@ -133,7 +133,7 @@ export function TagEditorForm() {
 
   const handleSave = async () => {
     if (!file) {
-      toast.error("MP3 파일을 먼저 선택해 주세요.");
+      toast.error("Please choose an MP3 file first.");
       return;
     }
     try {
@@ -165,7 +165,7 @@ export function TagEditorForm() {
           await writable.write(blob);
           await writable.close();
           saved = true;
-          toast.success("태그가 저장되었습니다.");
+          toast.success("Tags saved.");
         } catch (err: any) {
           if (err?.name !== "AbortError") console.warn("showSaveFilePicker failed", err);
         }
@@ -180,13 +180,13 @@ export function TagEditorForm() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        toast.success("태그가 저장되었습니다. 다운로드 폴더의 동일 이름 파일을 원본에 덮어써 주세요.");
+        toast.success("Tags saved. Overwrite the original with the file in your Downloads folder.");
       }
       resetAll();
     } catch (err) {
       console.error(err);
       setStatus("idle");
-      toast.error("태그 저장에 실패했습니다.");
+      toast.error("Failed to save tags.");
     }
   };
 
@@ -196,14 +196,14 @@ export function TagEditorForm() {
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
             <Music className="h-5 w-5 shrink-0" />
-            <span className="truncate">MP3 태그 편집</span>
+            <span className="truncate">Edit MP3 Tags</span>
           </CardTitle>
           <Link
             to="/"
             className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
-            MP4 → MP3 변환
+            MP4 → MP3
           </Link>
         </div>
       </CardHeader>
@@ -224,36 +224,36 @@ export function TagEditorForm() {
         >
           <Upload className="h-4 w-4 shrink-0" />
           <span className="block min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-left [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {file ? file.name : "MP3 파일 선택"}
+            {file ? file.name : "Choose MP3 file"}
           </span>
           {status === "reading" && <Loader2 className="ml-auto h-4 w-4 shrink-0 animate-spin" />}
         </Button>
 
         <div className="space-y-2.5">
           <div className="space-y-1">
-            <Label htmlFor="t-title" className="text-xs">노래 제목</Label>
+            <Label htmlFor="t-title" className="text-xs">Title</Label>
             <Input id="t-title" value={title} onChange={(e) => setTitle(e.target.value)} className="h-9" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="t-artist" className="text-xs">노래 참여자 (Artist)</Label>
+            <Label htmlFor="t-artist" className="text-xs">Artist</Label>
             <Input id="t-artist" value={artist} onChange={(e) => setArtist(e.target.value)} className="h-9" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="t-albumArtist" className="text-xs">앨범 참여자 (Album Artist)</Label>
+            <Label htmlFor="t-albumArtist" className="text-xs">Album Artist</Label>
             <Input id="t-albumArtist" value={albumArtist} onChange={(e) => setAlbumArtist(e.target.value)} className="h-9" />
           </div>
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <div className="space-y-1 min-w-0">
-              <Label htmlFor="t-album" className="text-xs">앨범명</Label>
+              <Label htmlFor="t-album" className="text-xs">Album</Label>
               <Input id="t-album" value={album} onChange={(e) => setAlbum(e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="t-track" className="text-xs">트랙 #</Label>
+              <Label htmlFor="t-track" className="text-xs">Track #</Label>
               <Input id="t-track" inputMode="numeric" value={trackNumber} onChange={(e) => setTrackNumber(e.target.value)} className="h-9" />
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="t-genre" className="text-xs">장르 (Genre)</Label>
+            <Label htmlFor="t-genre" className="text-xs">Genre</Label>
             <Input id="t-genre" value={genre} onChange={(e) => setGenre(e.target.value)} className="h-9" />
           </div>
 
@@ -265,7 +265,7 @@ export function TagEditorForm() {
               onClick={() => setLyricsOpen(true)}
             >
               <FileText className="mr-1.5 h-4 w-4" />
-              가사 편집{lyrics || syncedLyrics.length > 0 ? " ✓" : ""}
+              Lyrics{lyrics || syncedLyrics.length > 0 ? " ✓" : ""}
             </Button>
             <Button
               type="button"
@@ -274,7 +274,7 @@ export function TagEditorForm() {
               onClick={() => setCoverOpen(true)}
             >
               <ImageIcon className="mr-1.5 h-4 w-4" />
-              앨범 아트{cover ? " ✓" : ""}
+              Album art{cover ? " ✓" : ""}
             </Button>
           </div>
         </div>
@@ -286,15 +286,15 @@ export function TagEditorForm() {
           disabled={busy || !file}
         >
           {status === "saving" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {status === "saving" ? "저장 중…" : "태그 저장 (원본 수정)"}
+          {status === "saving" ? "Saving…" : "Save tags (overwrite source)"}
         </Button>
 
         <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-          모든 편집은 브라우저 안에서 이루어집니다. 파일은 어떤 서버로도 전송되지 않습니다.
+          All editing happens in your browser. Files are never uploaded to any server.
         </p>
       </CardContent>
 
-      {/* 가사 편집 팝업 (USLT/SYLT 토글 + 음성인식) */}
+      {/* Lyrics editor dialog (USLT/SYLT toggle + speech recognition) */}
       <LyricsDialog
         open={lyricsOpen}
         onOpenChange={setLyricsOpen}
@@ -308,13 +308,13 @@ export function TagEditorForm() {
       />
 
 
-      {/* 앨범 아트 팝업 */}
+      {/* Album art dialog */}
       <Dialog open={coverOpen} onOpenChange={setCoverOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>앨범 아트 (APIC)</DialogTitle>
+            <DialogTitle>Album Art (APIC)</DialogTitle>
             <DialogDescription>
-              권장 500×500 ~ 1000×1000 px 정사각 · 최대 1MB · JPEG 또는 PNG
+              Recommended 500×500–1000×1000 px square · max 1MB · JPEG or PNG
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -329,18 +329,18 @@ export function TagEditorForm() {
               <div className="flex items-center gap-3">
                 <img src={coverPreview} alt="cover preview" className="h-24 w-24 rounded object-cover border" />
                 <div className="flex flex-col gap-2">
-                  <Button size="sm" variant="outline" onClick={() => coverInputRef.current?.click()}>이미지 변경</Button>
-                  <Button size="sm" variant="ghost" onClick={clearCover}>제거</Button>
+                  <Button size="sm" variant="outline" onClick={() => coverInputRef.current?.click()}>Change image</Button>
+                  <Button size="sm" variant="ghost" onClick={clearCover}>Remove</Button>
                 </div>
               </div>
             ) : (
               <Button variant="outline" className="w-full min-h-11" onClick={() => coverInputRef.current?.click()}>
-                <Upload className="mr-2 h-4 w-4" /> 이미지 선택
+                <Upload className="mr-2 h-4 w-4" /> Choose image
               </Button>
             )}
           </div>
           <DialogFooter>
-            <Button onClick={() => setCoverOpen(false)}>완료</Button>
+            <Button onClick={() => setCoverOpen(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

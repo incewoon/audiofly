@@ -61,7 +61,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
       try { ff.terminate(); } catch {}
       console.error("[ffmpeg] load failed", err);
       throw new Error(
-        `변환 엔진 파일을 불러오지 못했습니다. (${err instanceof Error ? err.message : String(err)})`,
+        `Failed to load the conversion engine. (${err instanceof Error ? err.message : String(err)})`,
       );
     });
 
@@ -93,7 +93,7 @@ export async function convertMp4ToMp3({ file, onProgress, onLog }: ConvertOption
       "ffmpeg.exec()",
     );
     if (typeof exitCode === "number" && exitCode !== 0) {
-      throw new Error(`ffmpeg 변환 실패 (exit ${exitCode})`);
+      throw new Error(`ffmpeg conversion failed (exit ${exitCode})`);
     }
     const data = await ff.readFile(outputName);
     try { await ff.deleteFile(inputName); } catch {}

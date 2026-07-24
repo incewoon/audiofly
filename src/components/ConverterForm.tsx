@@ -21,15 +21,22 @@ function stripExt(name: string) {
 }
 
 type Status = "idle" | "loading" | "converting" | "tagging" | "done";
-type Preset = "1" | "2";
+type Preset = "1" | "2" | "3";
 
 const PRESET_KEY = "audiofly:filename-preset";
 
+const PRESET_LABELS: Record<Preset, string> = {
+  "1": "Artist-Track-Title",
+  "2": "Title-Artist",
+  "3": "Title",
+};
+
 function buildFilename(preset: Preset, opts: { title: string; artist: string; trackNumber: string; fallback: string }) {
   const { title, artist, trackNumber, fallback } = opts;
-  const parts = preset === "1"
-    ? [artist, trackNumber, title]
-    : [title, artist];
+  const parts =
+    preset === "1" ? [artist, trackNumber, title]
+    : preset === "2" ? [title, artist]
+    : [title];
   const joined = parts.map((s) => s.trim()).filter(Boolean).join("-");
   return joined || fallback;
 }
@@ -54,7 +61,7 @@ export function ConverterForm() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(PRESET_KEY);
-      if (saved === "1" || saved === "2") setPreset(saved);
+      if (saved === "1" || saved === "2" || saved === "3") setPreset(saved);
     } catch {
       /* ignore */
     }
@@ -72,10 +79,10 @@ export function ConverterForm() {
 
   const statusLabel = useMemo(() => {
     switch (status) {
-      case "loading": return "변환 엔진 로드 중…";
-      case "converting": return `변환 중… ${Math.round(progress * 100)}%`;
-      case "tagging": return "태그 주입 중…";
-      case "done": return "완료!";
+      case "loading": return "Loading engine…";
+      case "converting": return `Converting… ${Math.round(progress * 100)}%`;
+      case "tagging": return "Writing tags…";
+      case "done": return "Done!";
       default: return "";
     }
   }, [status, progress]);
@@ -103,7 +110,7 @@ export function ConverterForm() {
 
   const handleConvert = async () => {
     if (!file) {
-      toast.error("MP4 파일을 먼저 선택해 주세요.");
+      toast.error("Please choose an MP4 file first.");
       return;
     }
     try {
@@ -134,15 +141,15 @@ export function ConverterForm() {
       a.remove();
       setStatus("done");
       setProgress(1);
-      toast.success("다운로드가 완료되었습니다", {
+      toast.success("Download complete", {
         action: {
-          label: "바로가기",
+          label: "Open",
           onClick: () => {
             // Web has no API to open the OS Downloads folder; open the file itself in a new tab.
             window.open(url, "_blank", "noopener");
           },
         },
-        // Revoke after the toast disappears so the "바로가기" action still works.
+        // Revoke after the toast disappears so the "Open" action still works.
         onAutoClose: () => URL.revokeObjectURL(url),
         onDismiss: () => URL.revokeObjectURL(url),
         duration: 10000,
@@ -152,7 +159,7 @@ export function ConverterForm() {
     } catch (err) {
       console.error(err);
       setStatus("idle");
-      toast.error("변환에 실패했습니다. 콘솔을 확인해 주세요.");
+      toast.error("Conversion failed. Check the console.");
     }
   };
 
@@ -187,25 +194,25 @@ export function ConverterForm() {
 
   return (
     <Card className="w-full max-w-md shadow-lg">
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
             <Music className="h-5 w-5 shrink-0" />
-            <span className="truncate">MP4 → MP3 변환</span>
+            <span className="truncate">MP4 → MP3 Converter</span>
           </CardTitle>
           <Link
             to="/tag-editor"
             className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
           >
             <Tag className="h-3.5 w-3.5" />
-            MP3 태그 편집
+            Edit MP3 Tags
           </Link>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>동영상 파일</Label>
+          <Label>Video file</Label>
           <input
             ref={fileRef}
             type="file"
@@ -222,37 +229,37 @@ export function ConverterForm() {
           >
             <Upload className="h-4 w-4 shrink-0" />
             <span className="block min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-left [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {file ? file.name : "MP4 파일 선택"}
+              {file ? file.name : "Choose MP4 file"}
             </span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="title">노래 제목</Label>
+            <Label htmlFor="title">Title</Label>
             <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="artist">노래 참여자 (Artist)</Label>
+            <Label htmlFor="artist">Artist</Label>
             <Input id="artist" value={artist} onChange={(e) => setArtist(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="albumArtist">앨범 참여자 (Album Artist)</Label>
+            <Label htmlFor="albumArtist">Album Artist</Label>
             <Input id="albumArtist" value={albumArtist} onChange={(e) => setAlbumArtist(e.target.value)} />
           </div>
           <div className="grid grid-cols-[1fr_6rem] gap-3">
             <div className="space-y-1.5 min-w-0">
-              <Label htmlFor="album">앨범명</Label>
+              <Label htmlFor="album">Album</Label>
               <Input id="album" value={album} onChange={(e) => setAlbum(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="track">트랙 #</Label>
+              <Label htmlFor="track">Track #</Label>
               <Input id="track" inputMode="numeric" value={trackNumber} onChange={(e) => setTrackNumber(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="filename">파일명</Label>
+            <Label htmlFor="filename">Filename</Label>
             <Input
               id="filename"
               value={filename}
@@ -262,35 +269,26 @@ export function ConverterForm() {
               }}
               placeholder="output"
             />
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => handlePresetChange("1")}
-                className={cn(
-                  "flex-1 min-h-11 rounded-md border text-sm font-medium transition-colors px-3 text-left",
-                  preset === "1"
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground",
-                )}
-                aria-pressed={preset === "1"}
-              >
-                <span className="font-bold mr-2">1</span>
-                <span className="text-xs opacity-90">아티스트-트랙-제목</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePresetChange("2")}
-                className={cn(
-                  "flex-1 min-h-11 rounded-md border text-sm font-medium transition-colors px-3 text-left",
-                  preset === "2"
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground",
-                )}
-                aria-pressed={preset === "2"}
-              >
-                <span className="font-bold mr-2">2</span>
-                <span className="text-xs opacity-90">제목-아티스트</span>
-              </button>
+            <div className="flex items-center gap-2 pt-1">
+              {(["1", "2", "3"] as Preset[]).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => handlePresetChange(n)}
+                  className={cn(
+                    "h-11 w-11 shrink-0 rounded-md border text-base font-bold transition-colors",
+                    preset === n
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                  )}
+                  aria-pressed={preset === n}
+                >
+                  {n}
+                </button>
+              ))}
+              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                Preset: {PRESET_LABELS[preset]}
+              </span>
             </div>
           </div>
         </div>
@@ -302,7 +300,7 @@ export function ConverterForm() {
           disabled={busy || !file}
         >
           {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {busy ? statusLabel : "변환 & 다운로드"}
+          {busy ? statusLabel : "Convert & Download"}
         </Button>
 
         {(status === "converting" || status === "tagging" || status === "done") && (
@@ -313,7 +311,7 @@ export function ConverterForm() {
         )}
 
         <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-          변환은 전부 브라우저 안에서 이루어집니다. 파일은 어떤 서버로도 전송되지 않습니다.
+          Everything runs in your browser. Files are never uploaded to any server.
         </p>
       </CardContent>
     </Card>

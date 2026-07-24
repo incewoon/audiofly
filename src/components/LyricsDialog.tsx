@@ -101,10 +101,10 @@ export function LyricsDialog({
         setModelPct(total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0);
       });
       setModelReady(true);
-      toast.success(`${lang === "ko" ? "한국어" : "English"} 음성인식 모듈이 설치되었습니다.`);
+      toast.success(`${lang === "ko" ? "Korean" : "English"} speech module installed.`);
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.message ?? "모듈 다운로드에 실패했습니다.");
+      toast.error(e?.message ?? "Failed to download module.");
     } finally {
       setBusy(null);
     }
@@ -115,19 +115,19 @@ export function LyricsDialog({
       const { deleteWhisperModel } = await import("@/lib/whisper/transcribe");
       await deleteWhisperModel(lang);
       setModelReady(false);
-      toast.success(`${lang === "ko" ? "한국어" : "English"} 모듈을 삭제했습니다.`);
+      toast.success(`${lang === "ko" ? "Korean" : "English"} module removed.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "모듈 삭제에 실패했습니다.");
+      toast.error(e?.message ?? "Failed to remove module.");
     }
   };
 
   const runTranscription = async () => {
     if (!mp3File) {
-      toast.error("MP3 파일을 먼저 선택해 주세요.");
+      toast.error("Please choose an MP3 file first.");
       return;
     }
     if (!modelReady) {
-      toast.error("먼저 '모듈 다운로드'를 실행해 주세요.");
+      toast.error("Please run 'Download module' first.");
       return;
     }
     setBusy("model");
@@ -162,10 +162,10 @@ export function LyricsDialog({
       const syltLines: SyltLine[] = merged.map((s) => ({ timeMs: s.startMs, text: s.text }));
       setSyltDraft(serializeSylt(syltLines));
       setMode("sylt");
-      toast.success(`${syltLines.length}개 라인이 추출되었습니다.`);
+      toast.success(`Extracted ${syltLines.length} lines.`);
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.message ?? "음성인식에 실패했습니다.");
+      toast.error(e?.message ?? "Speech recognition failed.");
     } finally {
       setBusy(null);
     }
@@ -195,11 +195,11 @@ export function LyricsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>가사 편집</DialogTitle>
+          <DialogTitle>Edit Lyrics</DialogTitle>
           <DialogDescription>
             {mode === "uslt"
-              ? "일반 가사(USLT) 프레임에 저장됩니다."
-              : "타임스탬프 가사(SYLT + USLT)를 저장합니다. 라인 형식: [mm:ss.xx] 가사"}
+              ? "Saved to the standard lyrics (USLT) frame."
+              : "Saved as timestamped lyrics (SYLT + USLT). Line format: [mm:ss.xx] lyric"}
           </DialogDescription>
         </DialogHeader>
 
@@ -207,20 +207,20 @@ export function LyricsDialog({
           <Textarea
             value={usltDraft}
             onChange={(e) => setUsltDraft(e.target.value)}
-            placeholder="가사를 붙여넣으세요"
+            placeholder="Paste lyrics here"
             className="min-h-[38vh]"
           />
         ) : (
           <div className="space-y-2">
-            {/* 모듈 상태 + 언어 토글 */}
+            {/* Module status + language toggle */}
             <div className="flex items-center justify-between gap-2 rounded-md border p-2">
               <div className="flex items-center gap-2 text-[12px]">
                 {modelReady ? (
                   <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
-                    <Check className="h-3.5 w-3.5" /> 모듈: 다운로드됨
+                    <Check className="h-3.5 w-3.5" /> Module: installed
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">모듈: 미설치 ({WHISPER_MODEL_SIZE_LABELS[lang]})</span>
+                  <span className="text-muted-foreground">Module: not installed ({WHISPER_MODEL_SIZE_LABELS[lang]})</span>
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -230,7 +230,7 @@ export function LyricsDialog({
                   className={`px-2 py-1 rounded text-[12px] border ${lang === "ko" ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
                   disabled={busy !== null}
                 >
-                  한국어
+                  Korean
                 </button>
                 <button
                   type="button"
@@ -243,7 +243,7 @@ export function LyricsDialog({
               </div>
             </div>
 
-            {/* 모듈 다운로드 / 삭제 */}
+            {/* Module download / delete */}
             {!modelReady && (
               <div className="flex items-center gap-2">
                 <Button
@@ -258,7 +258,7 @@ export function LyricsDialog({
                   ) : (
                     <Download className="mr-1.5 h-4 w-4" />
                   )}
-                  음성인식 모듈 다운로드
+                  Download speech module
                 </Button>
                 {busy === "download" && (
                   <div className="flex-1 flex items-center gap-2">
@@ -282,18 +282,18 @@ export function LyricsDialog({
                 ) : (
                   <Mic className="mr-1.5 h-4 w-4" />
                 )}
-                음성인식으로 자동추출
+                Auto-extract from audio
               </Button>
               {busy === "model" && (
                 <div className="flex-1 flex items-center gap-2">
                   <Progress value={modelPct} className="h-2" />
-                  <span className="text-[11px] text-muted-foreground w-14 text-right">모델 {modelPct}%</span>
+                  <span className="text-[11px] text-muted-foreground w-14 text-right">Model {modelPct}%</span>
                 </div>
               )}
               {busy === "transcribe" && (
                 <div className="flex-1 flex items-center gap-2">
                   <Progress value={asrPct} className="h-2" />
-                  <span className="text-[11px] text-muted-foreground w-14 text-right">인식 {asrPct}%</span>
+                  <span className="text-[11px] text-muted-foreground w-14 text-right">ASR {asrPct}%</span>
                 </div>
               )}
               {modelReady && busy === null && (
@@ -302,7 +302,7 @@ export function LyricsDialog({
                   size="sm"
                   variant="ghost"
                   onClick={handleDeleteModel}
-                  title="설치된 모듈 삭제"
+                  title="Remove installed module"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -313,12 +313,12 @@ export function LyricsDialog({
               value={syltDraft}
               onChange={(e) => setSyltDraft(e.target.value)}
               onDoubleClick={(e) => insertTimestampAtCursor(e.currentTarget)}
-              placeholder="[00:00.00] 첫 번째 문장&#10;[00:03.42] 두 번째 문장"
+              placeholder="[00:00.00] first line&#10;[00:03.42] second line"
               className="min-h-[30vh] font-mono text-[13px]"
             />
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              최초 1회 온라인에서 모듈을 다운로드하면 이후에는 오프라인에서도 동작합니다.
-              선택한 언어(한국어/English)로 인식되며 결과는 편집 가능합니다.
+              Download the module once while online — it then works offline.
+              Recognition uses the selected language (Korean/English) and the result is editable.
             </p>
           </div>
         )}
@@ -332,10 +332,10 @@ export function LyricsDialog({
           </Tabs>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              취소
+              Cancel
             </Button>
             <Button onClick={handleSave} disabled={busy !== null}>
-              저장
+              Save
             </Button>
           </div>
         </DialogFooter>
