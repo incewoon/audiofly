@@ -43,7 +43,7 @@ function makeAbortableTimeout(ms: number, tag: string) {
 
 async function openModelCache() {
   if (!("caches" in globalThis)) {
-    throw new Error("이 브라우저는 오프라인 모델 캐시를 지원하지 않습니다.");
+    throw new Error("This browser does not support offline model caching.");
   }
   return caches.open(MODEL_CACHE_NAME);
 }
@@ -72,7 +72,7 @@ async function fetchAndCacheModel(
   const cacheKey = new Request(url);
 
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    throw new Error("오프라인 상태입니다. 온라인 상태에서 모듈을 먼저 다운로드해 주세요.");
+    throw new Error("You are offline. Download the module while online first.");
   }
 
   const modelFetch = makeAbortableTimeout(10 * 60_000, "Whisper model download");
@@ -81,7 +81,7 @@ async function fetchAndCacheModel(
     mode: "cors",
     signal: modelFetch.controller.signal,
   }).finally(modelFetch.clear);
-  if (!res.ok || !res.body) throw new Error(`모델 다운로드 실패 (${res.status})`);
+  if (!res.ok || !res.body) throw new Error(`Model download failed (${res.status})`);
   const total = Number(res.headers.get("content-length") ?? 0);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -131,7 +131,7 @@ async function loadModelBlob(lang: WhisperLang, cb?: TranscribeCallbacks): Promi
   }
   // 캐시가 없다면 — 자동추출 호출 시점에서는 사용자가 미리 다운로드해야 한다.
   throw new Error(
-    "선택한 언어의 음성인식 모듈이 설치되지 않았습니다. 온라인 상태에서 먼저 '모듈 다운로드'를 실행해 주세요.",
+    "Speech module for the selected language is not installed. Run 'Download module' while online first.",
   );
 }
 
@@ -150,13 +150,13 @@ function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
 
 async function assertAudioDecodable(file: File) {
   const AudioCtx = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
-  if (!AudioCtx) throw new Error("이 브라우저는 오디오 디코딩을 지원하지 않습니다.");
+  if (!AudioCtx) throw new Error("This browser does not support audio decoding.");
   const ctx = new AudioCtx({ sampleRate: 16000 });
   try {
     const buf = await file.arrayBuffer();
     await withTimeout(ctx.decodeAudioData(buf.slice(0)), 60_000, "AudioContext.decodeAudioData()");
   } catch (err) {
-    throw new Error(`MP3 오디오를 해석하지 못했습니다. 다른 MP3 파일로 시도해 주세요. (${err instanceof Error ? err.message : String(err)})`);
+    throw new Error(`Could not decode this MP3 audio. Try another file. (${err instanceof Error ? err.message : String(err)})`);
   } finally {
     ctx.close?.();
   }
@@ -185,7 +185,7 @@ export async function transcribeMp3(
 ): Promise<WhisperSegment[]> {
   if (!(globalThis as any).crossOriginIsolated) {
     throw new Error(
-      "음성인식을 위해 페이지가 cross-origin isolated 상태여야 합니다. 페이지를 새로고침 후 다시 시도해 주세요.",
+      "Speech recognition requires the page to be cross-origin isolated. Please reload and try again.",
     );
   }
 
@@ -205,7 +205,7 @@ export async function transcribeMp3(
   ]);
   const rawCreateModule = (shoutMod as any).default;
   if (typeof rawCreateModule !== "function") {
-    throw new Error("Whisper WASM 모듈 로드 실패: @transcribe/shout default export가 함수가 아님");
+    throw new Error("Failed to load Whisper WASM module: @transcribe/shout default export is not a function");
   }
 
   // shout.wasm.js는 실제 연산 시작 시 pthread 워커를 하나 더 스폰하는데,
