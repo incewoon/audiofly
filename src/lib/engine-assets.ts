@@ -22,8 +22,8 @@ export const WHISPER_MODEL_URLS = {
   en: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin",
 } as const;
 export const WHISPER_MODEL_SIZE_LABELS = {
-  ko: "약 60MB",
-  en: "약 60MB",
+  ko: "approx. 60MB",
+  en: "approx. 60MB",
 } as const;
 export const SHOUT_WASM_JS_URL = "/whisper/shout.wasm.js";
 
